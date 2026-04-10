@@ -46,7 +46,7 @@ public struct PlainTextPreviewView: View {
 
     public var body: some View {
         SwiftUI.Text(text)
-            .font(.system(.body, design: .monospaced))
+            .font(theme.codeBlock.font)
             .foregroundColor(theme.bodyTextColor)
             .lineLimit(maxLines)
             .textSelection(.enabled)

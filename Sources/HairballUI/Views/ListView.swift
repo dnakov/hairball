@@ -103,7 +103,7 @@ struct ListItemView: View {
             Image(systemName: state == .checked
                 ? theme.list.checkboxCheckedSymbol
                 : theme.list.checkboxUncheckedSymbol)
-                .font(.system(size: 14))
+                .font(theme.bodyFont)
                 .foregroundColor(state == .checked ? .accentColor : .secondary)
         }
     }

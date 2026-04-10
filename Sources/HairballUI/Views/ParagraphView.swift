@@ -28,5 +28,6 @@ private struct ParagraphBody: View {
             .font(theme.bodyFont)
             .foregroundColor(theme.bodyTextColor)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
     }
 }

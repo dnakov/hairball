@@ -49,8 +49,9 @@ public struct BlockNodeView: View {
 
         case .customBlock(_, let content):
             Text(content)
-                .font(.system(.body, design: .monospaced))
+                .font(theme.codeBlock.font)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
 
         case .latexBlock(let content):
             LatexBlockView(content: content)

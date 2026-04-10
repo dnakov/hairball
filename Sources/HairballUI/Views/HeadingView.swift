@@ -33,6 +33,7 @@ private struct HeadingBody: View {
             .padding(.top, style.topSpacing * theme.headingTopSpacingMultiplier)
             .padding(.bottom, style.bottomSpacing * theme.headingBottomSpacingMultiplier)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
             .accessibilityAddTraits(.isHeader)
     }
 }

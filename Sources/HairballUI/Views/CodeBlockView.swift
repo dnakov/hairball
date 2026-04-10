@@ -49,6 +49,7 @@ private struct CodeBlockBody: View {
                         : theme.codeBlock.padding
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
             }
         }
         .background(theme.codeBlock.backgroundColor)

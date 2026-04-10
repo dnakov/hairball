@@ -30,6 +30,7 @@ public struct HTMLBlockView: View {
                     .foregroundColor(theme.codeBlock.textColor.opacity(0.8))
                     .padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
             }
         }
         .background(theme.codeBlock.backgroundColor)

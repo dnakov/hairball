@@ -26,12 +26,13 @@ public struct MarkdownTableView: View {
                         cellView(for: head, col: col, isHeader: true)
                     }
                 }
+                .background(style.headerBackground)
 
                 // Header border
                 GridRow {
                     Rectangle()
                         .fill(style.borderColor)
-                        .frame(height: style.borderWidth)
+                        .frame(height: max(style.borderWidth, 1))
                         .gridCellColumns(colCount)
                 }
 
@@ -54,7 +55,6 @@ public struct MarkdownTableView: View {
                     }
                 }
             }
-            .background(style.headerBackground.opacity(0))
             .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: style.cornerRadius)
@@ -78,11 +78,11 @@ public struct MarkdownTableView: View {
                 rendered
             }
         }
-        .font(.system(size: style.fontSize))
+        .font(theme.bodyFont)
+        .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: align)
         .padding(.horizontal, style.cellConfiguration.horizontalPadding)
         .padding(.vertical, style.cellConfiguration.verticalPadding)
-        .background(isHeader ? style.headerBackground : .clear)
         .gridColumnAlignment(horizontalAlignment(for: col))
     }
 
