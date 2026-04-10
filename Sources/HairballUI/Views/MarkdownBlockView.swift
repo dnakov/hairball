@@ -67,9 +67,9 @@ public struct AnimatedMarkdownBlocksView: View {
                 ForEach(Array(collection.blocks.enumerated()), id: \.offset) { _, block in
                     BlockNodeView(node: block)
                         .transition(blockTransition)
+                        .animation(blockAnimation, value: collection.id)
                 }
             }
         }
-        .animation(blockAnimation, value: collections)
     }
 }

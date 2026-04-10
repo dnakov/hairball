@@ -114,11 +114,11 @@ public struct MarkdownBlocksView: View {
                 } else {
                     BlockNodeView(node: item.block)
                         .transition(effectiveTransition)
+                        .animation(effectiveAnimation, value: item.id)
                 }
             }
         }
         .foregroundColor(theme.foregroundColor)
-        .animation(effectiveAnimation, value: blocks.map(\.id))
     }
 }
 
