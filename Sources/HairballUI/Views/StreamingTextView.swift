@@ -72,6 +72,7 @@ extension View {
 @MainActor
 final class SmoothRevealDriver: ObservableObject {
     @Published var smoothPosition: Double = 0
+    @Published var hasCaughtUp: Bool = true
     var timeConstant: Double = 0.15
 
     private var target: Double = 0
@@ -79,6 +80,7 @@ final class SmoothRevealDriver: ObservableObject {
 
     func setTarget(_ newTarget: Double) {
         target = newTarget
+        hasCaughtUp = false
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -110,6 +112,7 @@ final class SmoothRevealDriver: ObservableObject {
 
         if abs(gap) < 0.5 {
             smoothPosition = target
+            hasCaughtUp = true
             timer?.invalidate()
             timer = nil
             return
@@ -189,16 +192,19 @@ public struct StreamingTextView: View {
     }
 
     public var body: some View {
-        if !isStreaming || !revealConfig.isEnabled {
+        let useContinuous = revealConfig.isEnabled && revealConfig.mode == .continuous
+            && (isStreaming || !revealDriver.hasCaughtUp)
+
+        if useContinuous {
+            continuousBody
+        } else if isStreaming && revealConfig.isEnabled {
+            batchedBody
+        } else {
             InlineTextRenderer(theme: theme).render(content)
                 .font(theme.bodyFont)
                 .foregroundColor(theme.foregroundColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
-        } else if revealConfig.mode == .continuous {
-            continuousBody
-        } else {
-            batchedBody
         }
     }
 
