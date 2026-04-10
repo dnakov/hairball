@@ -158,8 +158,8 @@ struct GlowAnimator: TokenAnimator {
 
 ```swift
 .tokenReveal(TokenRevealConfig(
-    duration: 0.15,       // smoothing constant / batch window
-    mode: .continuous     // or .batched
+    duration: 0.15,       // smoothing / speed / batch window
+    mode: .continuous     // or .linear or .batched
 ))
 
 // Presets
@@ -169,10 +169,11 @@ struct GlowAnimator: TokenAnimator {
 .tokenReveal(.default)    // 150ms continuous
 ```
 
-**Two reveal modes:**
+**Three reveal modes:**
 
-- **Continuous** — a smooth cursor chases the stream at 60fps. `duration` is the smoothing time constant (lower = tighter tracking, higher = trailing effect). Set `throttleInterval` low (0.016) so the renderer feeds content as fast as possible.
-- **Batched** — tokens are buffered into discrete batches. Each batch animates fully before the next starts. Set `throttleInterval` equal to `duration` so parse batches align with animation cycles.
+- **Continuous** — a smooth cursor chases the stream at 60fps using exponential smoothing. Speeds up when behind, slows when close. `duration` is the smoothing time constant. Set `throttleInterval` low (0.016).
+- **Linear** — constant-speed reveal at 60fps. `duration` controls speed (0.1 ≈ 1000 chars/sec, 1.0 ≈ 100 chars/sec). Keeps going at the same rate after streaming ends. Set `throttleInterval` low (0.016).
+- **Batched** — tokens are buffered into discrete batches. Each batch animates fully before the next starts. Set `throttleInterval` equal to `duration`.
 
 **Block-level animation** — for new blocks appearing during streaming:
 

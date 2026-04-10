@@ -57,7 +57,7 @@ struct StreamingCodeBlockView: View {
 
     @ViewBuilder
     private var codeContent: some View {
-        if isStreaming && revealConfig.isEnabled && revealConfig.mode == .continuous {
+        if isStreaming && revealConfig.isEnabled && (revealConfig.mode == .continuous || revealConfig.mode == .linear) {
             continuousCodeContent
         } else {
             SwiftUI.Text(highlighted)
@@ -81,10 +81,12 @@ struct StreamingCodeBlockView: View {
         )
         .onChange(of: trimmedContent) { _ in
             revealDriver.timeConstant = revealConfig.duration
+            revealDriver.linearMode = revealConfig.mode == .linear
             revealDriver.setTarget(Double(highlighted.characters.count))
         }
         .onAppear {
             revealDriver.timeConstant = revealConfig.duration
+            revealDriver.linearMode = revealConfig.mode == .linear
             revealDriver.snapTo(0)
             revealDriver.setTarget(Double(highlighted.characters.count))
         }

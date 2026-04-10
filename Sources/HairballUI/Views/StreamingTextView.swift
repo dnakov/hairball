@@ -13,7 +13,14 @@ public enum TokenRevealMode: Equatable, Sendable {
     /// A smooth cursor continuously chases the stream at 60fps.
     /// `duration` controls the smoothing time constant — lower values
     /// track the stream tightly, higher values create a trailing effect.
+    /// Speed adapts to gap size (faster when behind, slower when close).
     case continuous
+
+    /// Constant-speed reveal at 60fps. The cursor advances at a fixed rate
+    /// regardless of how much content is waiting. `duration` controls speed:
+    /// lower = faster, higher = slower. Keeps going after streaming ends
+    /// until all content is revealed.
+    case linear
 }
 
 // MARK: - Token Reveal Configuration
@@ -22,8 +29,9 @@ public enum TokenRevealMode: Equatable, Sendable {
 /// Use `.tokenAnimator()` to control the visual appearance.
 public struct TokenRevealConfig: Equatable, Sendable {
     /// Controls animation timing.
-    /// - **Batched mode**: batch duration and buffer window.
-    /// - **Continuous mode**: smoothing time constant (lower = tighter tracking).
+    /// - **Batched**: batch duration and buffer window.
+    /// - **Continuous**: smoothing time constant (lower = tighter tracking).
+    /// - **Linear**: speed control — `duration` of 0.1 ≈ 1000 chars/sec, 1.0 ≈ 100 chars/sec.
     public var duration: Double
     /// Whether token reveal animation is enabled.
     public var isEnabled: Bool
@@ -74,6 +82,7 @@ final class SmoothRevealDriver: ObservableObject {
     @Published var smoothPosition: Double = 0
     @Published var hasCaughtUp: Bool = true
     var timeConstant: Double = 0.15
+    var linearMode: Bool = false
 
     private var target: Double = 0
     private var timer: Timer?
@@ -118,17 +127,21 @@ final class SmoothRevealDriver: ObservableObject {
             return
         }
 
-        // Exponential smoothing for the bulk, with a minimum speed
-        // floor proportional to timeConstant so the final approach
-        // doesn't visibly decelerate but the slider still works.
-        let alpha = 1.0 - exp(-dt / max(timeConstant, 0.005))
-        let expStep = gap * alpha
-        let minCharsPerSec = 2.0 / max(timeConstant, 0.01)
-        let minStep = max(minCharsPerSec * dt, 0.5)
-        let step = gap > 0
-            ? max(expStep, min(minStep, gap))
-            : min(expStep, max(-minStep, gap))
-        smoothPosition += step
+        if linearMode {
+            // Constant speed: 100 chars per `timeConstant` seconds
+            let charsPerSec = 100.0 / max(timeConstant, 0.01)
+            smoothPosition = min(smoothPosition + charsPerSec * dt, target)
+        } else {
+            // Exponential smoothing with a minimum speed floor
+            let alpha = 1.0 - exp(-dt / max(timeConstant, 0.005))
+            let expStep = gap * alpha
+            let minCharsPerSec = 2.0 / max(timeConstant, 0.01)
+            let minStep = max(minCharsPerSec * dt, 0.5)
+            let step = gap > 0
+                ? max(expStep, min(minStep, gap))
+                : min(expStep, max(-minStep, gap))
+            smoothPosition += step
+        }
     }
 
     deinit {
@@ -191,11 +204,15 @@ public struct StreamingTextView: View {
         content.plainText.count
     }
 
+    private var usesSmoothDriver: Bool {
+        revealConfig.mode == .continuous || revealConfig.mode == .linear
+    }
+
     public var body: some View {
-        let useContinuous = revealConfig.isEnabled && revealConfig.mode == .continuous
+        let useSmoothReveal = revealConfig.isEnabled && usesSmoothDriver
             && (isStreaming || !revealDriver.hasCaughtUp)
 
-        if useContinuous {
+        if useSmoothReveal {
             continuousBody
         } else if isStreaming && revealConfig.isEnabled {
             batchedBody
@@ -232,15 +249,18 @@ public struct StreamingTextView: View {
         .textSelection(.enabled)
         .onChange(of: currentPlainLength) { newLength in
             revealDriver.timeConstant = revealConfig.duration
+            revealDriver.linearMode = revealConfig.mode == .linear
             revealDriver.setTarget(Double(newLength))
         }
         .onChange(of: revealConfig.duration) { newDuration in
             revealDriver.timeConstant = newDuration
         }
+        .onChange(of: revealConfig.mode) { newMode in
+            revealDriver.linearMode = newMode == .linear
+        }
         .onAppear {
-            // Start from 0 so any content that accumulated before
-            // the view appeared gets smoothly revealed, not skipped.
             revealDriver.timeConstant = revealConfig.duration
+            revealDriver.linearMode = revealConfig.mode == .linear
             revealDriver.snapTo(0)
             revealDriver.setTarget(Double(currentPlainLength))
         }

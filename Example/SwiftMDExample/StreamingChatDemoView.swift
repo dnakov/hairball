@@ -110,17 +110,23 @@ struct StreamingChatDemoView: View {
 
                             if animatorChoice != .instant {
                                 Picker("Mode", selection: $revealMode) {
-                                    SwiftUI.Text("Cont").tag(TokenRevealMode.continuous)
+                                    SwiftUI.Text("Smooth").tag(TokenRevealMode.continuous)
+                                    SwiftUI.Text("Linear").tag(TokenRevealMode.linear)
                                     SwiftUI.Text("Batch").tag(TokenRevealMode.batched)
                                 }
                                 .pickerStyle(.segmented)
-                                .frame(width: 120)
+                                .frame(width: 170)
                             }
                         }
 
                         if animatorChoice != .instant {
+                            let label = switch revealMode {
+                                case .continuous: "Smoothing"
+                                case .linear: "Speed"
+                                case .batched: "Batch Duration"
+                            }
                             sliderRow(
-                                label: revealMode == .continuous ? "Smoothing" : "Batch Duration",
+                                label: label,
                                 value: $revealDuration,
                                 range: 0.02...0.8,
                                 display: "\(Int(revealDuration * 1000))ms"
@@ -195,7 +201,7 @@ struct StreamingChatDemoView: View {
     }
 
     private func syncThrottle() {
-        let interval: TimeInterval = revealMode == .continuous ? 0.016 : revealDuration
+        let interval: TimeInterval = revealMode == .batched ? revealDuration : 0.016
         chatVM.throttleInterval = interval
         for msg in chatVM.messages {
             msg.renderer?.throttleInterval = interval
