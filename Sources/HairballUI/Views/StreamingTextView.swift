@@ -213,7 +213,11 @@ public struct StreamingTextView: View {
             revealDriver.timeConstant = newDuration
         }
         .onAppear {
-            revealDriver.snapTo(Double(currentPlainLength))
+            // Start from 0 so any content that accumulated before
+            // the view appeared gets smoothly revealed, not skipped.
+            revealDriver.timeConstant = revealConfig.duration
+            revealDriver.snapTo(0)
+            revealDriver.setTarget(Double(currentPlainLength))
         }
         .onDisappear {
             revealDriver.stop()

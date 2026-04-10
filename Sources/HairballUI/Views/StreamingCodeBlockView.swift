@@ -84,7 +84,9 @@ struct StreamingCodeBlockView: View {
             revealDriver.setTarget(Double(highlighted.characters.count))
         }
         .onAppear {
-            revealDriver.snapTo(Double(highlighted.characters.count))
+            revealDriver.timeConstant = revealConfig.duration
+            revealDriver.snapTo(0)
+            revealDriver.setTarget(Double(highlighted.characters.count))
         }
         .onDisappear {
             revealDriver.stop()
