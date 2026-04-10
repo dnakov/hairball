@@ -14,7 +14,7 @@ public struct BlockquoteView: View {
         let style = theme.blockquote
 
         HStack(alignment: .top, spacing: 0) {
-            RoundedRectangle(cornerRadius: style.borderWidth / 2)
+            Rectangle()
                 .fill(style.borderColor)
                 .frame(width: style.borderWidth)
 
@@ -23,8 +23,11 @@ public struct BlockquoteView: View {
                     BlockNodeView(node: block)
                 }
             }
-            .padding(style.padding)
+            .padding(.leading, style.padding.leading)
+            .padding(.trailing, style.padding.trailing)
+            .padding(.vertical, style.padding.top)
         }
+        .fixedSize(horizontal: false, vertical: true)
         .background(style.backgroundColor)
         .foregroundColor(style.textColor)
     }
