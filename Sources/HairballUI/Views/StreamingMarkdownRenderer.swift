@@ -51,9 +51,10 @@ public struct MarkdownDocumentView: View {
 
 /// Renders an array of `IdentifiedBlock` with streaming-aware animation.
 ///
-/// - New blocks get the `blockTransition`
-/// - The last block during streaming updates without transition (text grows smoothly)
-/// - Finished/static content gets no per-block animation
+/// Key design for smooth streaming:
+/// - New blocks appear with `blockTransition` (e.g. opacity fade)
+/// - The last block during streaming has NO animation so text grows instantly
+/// - Layout changes from text growing don't animate (no jumpy paragraph shifting)
 ///
 /// Use this when you've already parsed and identified your blocks:
 /// ```swift
@@ -68,12 +69,10 @@ public struct MarkdownBlocksView: View {
     private let blockAnimation: Animation?
     private let blockTransition: AnyTransition
 
-    @State private var previousBlockCount: Int = 0
-
     public init(
         blocks: [IdentifiedBlock],
         isStreaming: Bool = false,
-        blockAnimation: Animation? = .easeOut(duration: 0.2),
+        blockAnimation: Animation? = .easeOut(duration: 0.15),
         blockTransition: AnyTransition = .opacity
     ) {
         self.blocks = blocks
@@ -84,24 +83,26 @@ public struct MarkdownBlocksView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
-            ForEach(Array(blocks.enumerated()), id: \.element.id) { index, item in
-                let isNew = index >= previousBlockCount && isStreaming
-                let isLast = index == blocks.count - 1
+            ForEach(blocks) { item in
+                let isLast = item.id == blocks.last?.id
 
-                BlockNodeView(node: item.block)
-                    .transition(isNew ? blockTransition : .identity)
-                    .animation(isLast && isStreaming ? nil : blockAnimation, value: blocks.count)
+                // For the last block during streaming, use StreamingTextView
+                // to fade in new tokens. For all other blocks, render normally.
+                if isLast && isStreaming, case .paragraph(let content) = item.block {
+                    StreamingTextView(content: content, isStreaming: true)
+                } else if isLast && isStreaming, case .heading(let level, let content) = item.block {
+                    // Headings can also be the actively streaming block
+                    StreamingTextView(content: content, isStreaming: true)
+                        .font(theme.headingStyle(for: level).font)
+                        .fontWeight(theme.headingStyle(for: level).weight)
+                } else {
+                    BlockNodeView(node: item.block)
+                        .transition(blockTransition)
+                }
             }
         }
         .foregroundColor(theme.foregroundColor)
-        .animation(blockAnimation, value: blocks.count)
-        .onChange(of: blocks.count) { newCount in
-            // Track previous count so we know which blocks are "new"
-            // Delay the update so the transition can fire first
-            DispatchQueue.main.async {
-                previousBlockCount = newCount
-            }
-        }
+        .animation(blockAnimation, value: blocks.map(\.id))
     }
 }
 

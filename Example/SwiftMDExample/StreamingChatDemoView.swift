@@ -151,8 +151,8 @@ final class ChatViewModel: ObservableObject {
                     let renderer = StreamingMarkdownRenderer(
                         processors: [AutoLinkTransformer(), LatexTransformer(), CitationProcessor()],
                         throttleInterval: 0.016,
-                        blockAnimation: .easeOut(duration: 0.15),
-                        blockTransition: .opacity
+                        blockAnimation: .easeOut(duration: 0.2),
+                        blockTransition: .opacity.combined(with: .offset(y: 4))
                     )
                     messages.append(ChatMsg(role: .assistant, text: "", renderer: renderer))
 
@@ -829,6 +829,7 @@ struct MessageRow: View {
                         StreamingMarkdownContentView(renderer: renderer)
                             .markdownTheme(darkAssistantTheme)
                             .codeSyntaxHighlighter(sharedHighlighter)
+                            .tokenReveal(.init(duration: 0.15))
                     } else {
                         MarkdownView(message.text, processors: [
                             AutoLinkTransformer(),
@@ -837,6 +838,7 @@ struct MessageRow: View {
                         ])
                         .markdownTheme(darkAssistantTheme)
                         .codeSyntaxHighlighter(sharedHighlighter)
+                        .tokenReveal(.disabled)
                     }
                 }
                 .padding(.horizontal, 16)

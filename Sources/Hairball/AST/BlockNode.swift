@@ -62,16 +62,30 @@ public struct IdentifiedBlock: Identifiable, Equatable, Hashable, Sendable {
     }
 
     /// Assign stable identities to an array of blocks.
-    /// Uses each block's hash value plus an occurrence counter as a tiebreaker
-    /// for duplicate blocks.
+    ///
+    /// Uses a type-prefix + position index so IDs are stable during streaming
+    /// (the last block's content changes every tick but its ID stays the same).
+    /// The type prefix ensures that when a block changes type (e.g. paragraph → heading
+    /// as the user types `#`), the old block animates out and the new one animates in.
     public static func identify(_ blocks: [BlockNode]) -> [IdentifiedBlock] {
-        var counts: [Int: Int] = [:]
-        return blocks.map { block in
-            let hash = block.hashValue
-            let count = counts[hash, default: 0]
-            counts[hash] = count + 1
-            let id = "\(hash)-\(count)"
-            return IdentifiedBlock(id: id, block: block)
+        blocks.enumerated().map { index, block in
+            let prefix: String
+            switch block {
+            case .document: prefix = "doc"
+            case .heading(let level, _): prefix = "h\(level)"
+            case .paragraph: prefix = "p"
+            case .codeBlock: prefix = "code"
+            case .blockQuote: prefix = "bq"
+            case .orderedList: prefix = "ol"
+            case .unorderedList: prefix = "ul"
+            case .table: prefix = "tbl"
+            case .thematicBreak: prefix = "hr"
+            case .htmlBlock: prefix = "html"
+            case .customBlock: prefix = "custom"
+            case .latexBlock: prefix = "latex"
+            case .blockDirective: prefix = "dir"
+            }
+            return IdentifiedBlock(id: "\(prefix)-\(index)", block: block)
         }
     }
 }
