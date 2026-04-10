@@ -92,6 +92,13 @@ final class SmoothRevealDriver: ObservableObject {
         target = value
     }
 
+    /// Snap to target and stop — call when streaming ends.
+    func finish() {
+        smoothPosition = target
+        timer?.invalidate()
+        timer = nil
+    }
+
     func stop() {
         timer?.invalidate()
         timer = nil
@@ -99,14 +106,24 @@ final class SmoothRevealDriver: ObservableObject {
 
     private func tick() {
         let dt = 1.0 / 60.0
-        let alpha = 1.0 - exp(-dt / max(timeConstant, 0.005))
-        smoothPosition += (target - smoothPosition) * alpha
+        let gap = target - smoothPosition
 
-        if abs(target - smoothPosition) < 0.5 {
+        if abs(gap) < 0.5 {
             smoothPosition = target
             timer?.invalidate()
             timer = nil
+            return
         }
+
+        // Exponential smoothing for the bulk, but enforce a minimum
+        // speed so the final approach doesn't visibly decelerate.
+        let alpha = 1.0 - exp(-dt / max(timeConstant, 0.005))
+        let expStep = gap * alpha
+        let minSpeed = max(gap * 0.15, 2.0) // at least 2 chars/frame
+        let step = gap > 0
+            ? max(expStep, min(minSpeed * dt * 60, gap))
+            : min(expStep, max(-minSpeed * dt * 60, gap))
+        smoothPosition += step
     }
 
     deinit {
