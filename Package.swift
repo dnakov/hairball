@@ -1,0 +1,44 @@
+// swift-tools-version: 5.9
+
+import PackageDescription
+
+let package = Package(
+    name: "Hairball",
+    platforms: [
+        .iOS(.v16),
+        .macOS(.v13),
+    ],
+    products: [
+        .library(name: "Hairball", targets: ["Hairball"]),
+        .library(name: "HairballUI", targets: ["HairballUI"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-markdown.git", from: "0.4.0"),
+        .package(url: "https://github.com/mgriebling/SwiftMath.git", from: "1.3.5"),
+        .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.1"),
+    ],
+    targets: [
+        .target(
+            name: "Hairball",
+            dependencies: [
+                .product(name: "Markdown", package: "swift-markdown"),
+            ]
+        ),
+        .target(
+            name: "HairballUI",
+            dependencies: [
+                "Hairball",
+                .product(name: "SwiftMath", package: "SwiftMath"),
+                .product(name: "Highlightr", package: "Highlightr"),
+            ]
+        ),
+        .testTarget(
+            name: "HairballTests",
+            dependencies: ["Hairball"]
+        ),
+        .testTarget(
+            name: "HairballUITests",
+            dependencies: ["HairballUI"]
+        ),
+    ]
+)

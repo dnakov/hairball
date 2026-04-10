@@ -1,0 +1,32 @@
+name: HairballExample
+options:
+  bundleIdPrefix: com.hairball
+  deploymentTarget:
+    macOS: "13.0"
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+
+packages:
+  Hairball:
+    path: ..
+
+targets:
+  HairballExample:
+    type: application
+    platform: [macOS, iOS]
+    sources:
+      - SwiftMDExample
+    dependencies:
+      - package: Hairball
+        product: Hairball
+      - package: Hairball
+        product: HairballUI
+    settings:
+      base:
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.developer-tools"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.hairball.example
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
