@@ -115,14 +115,16 @@ final class SmoothRevealDriver: ObservableObject {
             return
         }
 
-        // Exponential smoothing for the bulk, but enforce a minimum
-        // speed so the final approach doesn't visibly decelerate.
+        // Exponential smoothing for the bulk, with a minimum speed
+        // floor proportional to timeConstant so the final approach
+        // doesn't visibly decelerate but the slider still works.
         let alpha = 1.0 - exp(-dt / max(timeConstant, 0.005))
         let expStep = gap * alpha
-        let minSpeed = max(gap * 0.15, 2.0) // at least 2 chars/frame
+        let minCharsPerSec = 2.0 / max(timeConstant, 0.01)
+        let minStep = max(minCharsPerSec * dt, 0.5)
         let step = gap > 0
-            ? max(expStep, min(minSpeed * dt * 60, gap))
-            : min(expStep, max(-minSpeed * dt * 60, gap))
+            ? max(expStep, min(minStep, gap))
+            : min(expStep, max(-minStep, gap))
         smoothPosition += step
     }
 
