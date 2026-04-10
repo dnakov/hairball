@@ -6,7 +6,7 @@ A Swift markdown parsing and rendering library for iOS and macOS. Two targets:
 - **HairballUI** — SwiftUI rendering with theming, syntax highlighting (Highlightr), LaTeX (SwiftMath), and streaming support.
 
 ```swift
-.package(url: "https://github.com/user/hairball.git", from: "1.0.0")
+.package(url: "https://github.com/dnakov/hairball.git", from: "1.0.0")
 ```
 
 Platforms: iOS 16+, macOS 13+
@@ -41,11 +41,11 @@ MarkdownView("```swift\nlet x = 42\n```")
 
 ## Rendering Layers
 
-Hairball has four rendering layers. Pick the one that matches how much control you need:
+Four layers, from highest to lowest level of control:
 
 ### Layer 1: `MarkdownView` — highest level
 
-Takes a string, parses it, renders it. Zero configuration required.
+Takes a string, parses it, renders it.
 
 ```swift
 MarkdownView("# Title\n\nParagraph with **bold**.")
@@ -69,12 +69,9 @@ You parse, identify blocks, and control streaming animation.
 ```swift
 let blocks = IdentifiedBlock.identify(document.blocks)
 
-MarkdownBlocksView(
-    blocks: blocks,
-    isStreaming: true,
-    blockAnimation: .spring(duration: 0.3),
-    blockTransition: .opacity
-)
+MarkdownBlocksView(blocks: blocks, isStreaming: true)
+    .tokenAnimator(FadeTokenAnimator())
+    .tokenReveal(.init(duration: 0.15, mode: .continuous))
 ```
 
 ### Layer 4: `BlockNodeView` — you own everything
@@ -84,8 +81,6 @@ Render individual blocks with zero opinions from the library.
 ```swift
 ForEach(IdentifiedBlock.identify(doc.blocks)) { item in
     BlockNodeView(node: item.block)
-        .transition(.push(from: .bottom))
-        .animation(.spring, value: item.id)
 }
 ```
 
@@ -93,18 +88,18 @@ ForEach(IdentifiedBlock.identify(doc.blocks)) { item in
 
 ## Streaming
 
-### Option A: Let Hairball handle it
+### Option A: Let Hairball manage the pipeline
 
 ```swift
 @StateObject var renderer = StreamingMarkdownRenderer(
     processors: [LatexTransformer(), AutoLinkTransformer()],
-    throttleInterval: 0.016,
-    blockAnimation: .easeOut(duration: 0.2),
-    blockTransition: .opacity
+    throttleInterval: 0.016
 )
 
 // View
 StreamingMarkdownContentView(renderer: renderer)
+    .tokenAnimator(FadeTokenAnimator())
+    .tokenReveal(.init(duration: 0.15, mode: .continuous))
 
 // Feed tokens
 Task {
@@ -117,41 +112,93 @@ Task {
 
 ### Option B: You handle streaming, Hairball renders
 
-If you already have your own streaming pipeline:
-
 ```swift
 @State private var document = Document(blocks: [])
-@State private var isStreaming = false
-
 let parser = MarkdownParser()
-let processors: [any MarkdownProcessor] = [LatexTransformer()]
 
-// Your view
-MarkdownDocumentView(
-    document: document,
-    isStreaming: isStreaming,
+MarkdownDocumentView(document: document, isStreaming: true)
+    .tokenAnimator(FadeTokenAnimator())
+    .tokenReveal(.default)
+
+func onToken(_ token: String) {
+    accumulated += token
+    document = parser.parse(accumulated)
+}
+```
+
+### Animation Control
+
+All animation is app-controlled via environment modifiers. The library has no hardcoded animations.
+
+**Token animator** — how individual characters appear:
+
+```swift
+.tokenAnimator(FadeTokenAnimator())    // opacity 0→1 (default)
+.tokenAnimator(RevealTokenAnimator())  // left-to-right reveal
+.tokenAnimator(InstantTokenAnimator()) // no animation
+
+// Custom:
+struct GlowAnimator: TokenAnimator {
+    func animate(
+        revealed: AttributedString,
+        fresh: AttributedString,
+        progress: Double,
+        foregroundColor: Color
+    ) -> Text {
+        var f = fresh
+        f.foregroundColor = foregroundColor.opacity(progress)
+        f.backgroundColor = .yellow.opacity((1 - progress) * 0.3)
+        if revealed.characters.isEmpty { return Text(f) }
+        return Text(revealed) + Text(f)
+    }
+}
+```
+
+**Reveal config** — timing and mode:
+
+```swift
+.tokenReveal(TokenRevealConfig(
+    duration: 0.15,       // smoothing constant / batch window
+    mode: .continuous     // or .batched
+))
+
+// Presets
+.tokenReveal(.fast)       // 80ms
+.tokenReveal(.slow)       // 300ms
+.tokenReveal(.disabled)   // no animation
+.tokenReveal(.default)    // 150ms continuous
+```
+
+**Two reveal modes:**
+
+- **Continuous** — a smooth cursor chases the stream at 60fps. `duration` is the smoothing time constant (lower = tighter tracking, higher = trailing effect). Set `throttleInterval` low (0.016) so the renderer feeds content as fast as possible.
+- **Batched** — tokens are buffered into discrete batches. Each batch animates fully before the next starts. Set `throttleInterval` equal to `duration` so parse batches align with animation cycles.
+
+**Block-level animation** — for new blocks appearing during streaming:
+
+```swift
+// Explicit (overrides auto-derivation from tokenReveal):
+MarkdownBlocksView(
+    blocks: blocks,
+    isStreaming: true,
     blockAnimation: .easeOut(duration: 0.2),
     blockTransition: .opacity
 )
 
-// Your streaming loop — you control everything
-func onToken(_ token: String) {
-    accumulated += token
-    var doc = parser.parse(accumulated)
-    for p in processors { doc = p.process(doc) }
-    document = doc
-}
-
-func onStreamEnd() {
-    isStreaming = false
-}
+// Or let the library derive it from tokenReveal config (default).
+// When tokenReveal is enabled, new blocks fade in with matching timing.
+// When disabled, no block animation.
 ```
 
-This gives you full control over:
-- When to re-parse (every token? every 3 tokens? on newlines only?)
-- What processors to run and when
-- Animation timing
-- Throttling strategy
+### Streaming Architecture
+
+```
+tokens → StreamingMarkdownRenderer → Document → MarkdownBlocksView
+              ↑ throttleInterval          ↑ tokenReveal config
+              (content buffer)            (animation timing)
+```
+
+The renderer's `throttleInterval` controls how often tokens are parsed into blocks. The view's `tokenReveal` config controls how those blocks animate. For continuous mode, keep `throttleInterval` low. For batched mode, match them.
 
 ---
 
@@ -190,14 +237,10 @@ Built-in presets: `.default`, `.assistantBubble`, `.userBubble`, `.userBubblePen
 ### Syntax highlighting themes
 
 ```swift
-// Use any Highlightr theme
 let highlighter = HighlightrCodeSyntaxHighlighter(theme: "atom-one-dark")
 
-// Change at runtime
-highlighter.setTheme("github")
-
-// List available themes
-highlighter.availableThemes // ["atom-one-dark", "github", "monokai", ...]
+highlighter.setTheme("github")             // change at runtime
+highlighter.availableThemes                 // ["atom-one-dark", "github", ...]
 
 MarkdownView("...")
     .codeSyntaxHighlighter(highlighter)
@@ -212,15 +255,12 @@ Replace the view for any block type:
 ```swift
 struct MyProvider: MarkdownViewComponentProvider {
     func makeCodeBlock(language: String?, code: String, configuration: BlockConfiguration) -> some View {
-        // Your custom code block with whatever UI you want
         MyFancyCodeBlock(code: code, language: language)
     }
 
-    // Return default views for everything else
     func makeHeading(level: Int, content: [InlineNode], configuration: BlockConfiguration) -> some View {
         HeadingView(level: level, content: content)
     }
-    // ... other block types
 }
 
 MarkdownView("...")
@@ -232,13 +272,10 @@ Or replace just the code block renderer:
 ```swift
 struct NeonCodeRenderer: CodeBlockRenderer {
     func makeBody(configuration: CodeBlockConfiguration) -> some View {
-        // configuration.code, configuration.language, configuration.highlightedCode, configuration.lineCount
-        VStack {
-            Text(configuration.highlightedCode)
-                .padding()
-        }
-        .background(.black)
-        .cornerRadius(12)
+        Text(configuration.highlightedCode)
+            .padding()
+            .background(.black)
+            .cornerRadius(12)
     }
 }
 
@@ -258,8 +295,6 @@ Transform the parsed AST before rendering:
 | `AutoLinkTransformer` | Raw URLs in text become tappable links |
 | `CitationProcessor` | `[^1]` and `[1](url)` become citation nodes |
 | `DefaultMarkdownProcessor` | Normalize whitespace, merge text nodes |
-
-Chain them:
 
 ```swift
 MarkdownView("...", processors: [
@@ -310,7 +345,7 @@ for block in document.blocks {
 
 ### Block types
 
-`document`, `heading`, `paragraph`, `codeBlock`, `blockQuote`, `orderedList`, `unorderedList`, `table`, `thematicBreak`, `htmlBlock`, `latexBlock`, `blockDirective`, `customBlock`
+`heading`, `paragraph`, `codeBlock`, `blockQuote`, `orderedList`, `unorderedList`, `table`, `thematicBreak`, `htmlBlock`, `latexBlock`, `blockDirective`, `customBlock`
 
 ### Inline types
 

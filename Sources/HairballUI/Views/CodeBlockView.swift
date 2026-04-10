@@ -58,35 +58,9 @@ private struct CodeBlockBody: View {
 
     @ViewBuilder
     private var headerBar: some View {
-        HStack {
-            if theme.codeBlock.showLanguageLabel, let language, !language.isEmpty {
-                SwiftUI.Text(language)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
-            }
-
-            Spacer()
-
-            if theme.codeBlock.showCopyButton {
-                Button {
-                    copyToClipboard()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                        if isCopied {
-                            SwiftUI.Text("Copied")
-                        }
-                    }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
+        CodeBlockHeaderBar(language: language, isCopied: isCopied) {
+            copyToClipboard()
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
     }
 
     private func copyToClipboard() {

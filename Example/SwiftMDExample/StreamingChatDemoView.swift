@@ -2,10 +2,31 @@ import SwiftUI
 import Hairball
 import HairballUI
 
+// MARK: - Animator Picker
+
+enum AnimatorChoice: String, CaseIterable {
+    case fade = "Fade"
+    case reveal = "Reveal"
+    case instant = "Instant"
+
+    var animator: any TokenAnimator {
+        switch self {
+        case .fade: return FadeTokenAnimator()
+        case .reveal: return RevealTokenAnimator()
+        case .instant: return InstantTokenAnimator()
+        }
+    }
+}
+
 struct StreamingChatDemoView: View {
     @StateObject private var chatVM = ChatViewModel()
     @State private var isAtBottom = true
     @State private var scrollToBottomTrigger = 0
+    @State private var animatorChoice: AnimatorChoice = .fade
+    @State private var revealMode: TokenRevealMode = .continuous
+    @State private var revealDuration: Double = 0.15
+    @State private var tokenSpeed: Double = 25  // ms per token
+    @State private var showControls: Bool = true
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -35,6 +56,11 @@ struct StreamingChatDemoView: View {
                         proxy.scrollTo("bottom", anchor: .bottom)
                     }
                 }
+                .tokenAnimator(animatorChoice.animator)
+                .tokenReveal(animatorChoice == .instant
+                    ? .disabled
+                    : TokenRevealConfig(duration: revealDuration, mode: revealMode)
+                )
             }
 
             // Scroll-to-bottom button — only visible when not at bottom
@@ -55,6 +81,64 @@ struct StreamingChatDemoView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
                 Rectangle().fill(Color(white: 0.2)).frame(height: 0.5)
+
+                // Toggle controls visibility
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showControls.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        SwiftUI.Text("Controls")
+                            .font(.caption)
+                            .foregroundColor(Color(white: 0.5))
+                        Image(systemName: showControls ? "chevron.down" : "chevron.up")
+                            .font(.caption2)
+                            .foregroundColor(Color(white: 0.4))
+                    }
+                    .padding(.top, 6)
+                }
+
+                if showControls {
+                    VStack(spacing: 6) {
+                        // Animator style
+                        HStack(spacing: 8) {
+                            Picker("Animation", selection: $animatorChoice) {
+                                ForEach(AnimatorChoice.allCases, id: \.self) { choice in
+                                    SwiftUI.Text(choice.rawValue).tag(choice)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            if animatorChoice != .instant {
+                                Picker("Mode", selection: $revealMode) {
+                                    SwiftUI.Text("Cont").tag(TokenRevealMode.continuous)
+                                    SwiftUI.Text("Batch").tag(TokenRevealMode.batched)
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(width: 120)
+                            }
+                        }
+
+                        if animatorChoice != .instant {
+                            sliderRow(
+                                label: revealMode == .continuous ? "Smoothing" : "Batch Duration",
+                                value: $revealDuration,
+                                range: 0.02...0.8,
+                                display: "\(Int(revealDuration * 1000))ms"
+                            )
+                        }
+
+                        sliderRow(
+                            label: "Token Speed",
+                            value: $tokenSpeed,
+                            range: 5...100,
+                            display: "\(Int(tokenSpeed))ms"
+                        )
+
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
 
                 HStack(spacing: 10) {
                     HStack {
@@ -99,6 +183,45 @@ struct StreamingChatDemoView: View {
                 chatVM.runStressTest()
             }
         }
+        .onChange(of: revealDuration) { _ in
+            syncThrottle()
+        }
+        .onChange(of: revealMode) { _ in
+            syncThrottle()
+        }
+        .onChange(of: tokenSpeed) { newSpeed in
+            chatVM.tokenDelayNs = UInt64(newSpeed * 1_000_000)
+        }
+    }
+
+    private func syncThrottle() {
+        let interval: TimeInterval = revealMode == .continuous ? 0.016 : revealDuration
+        chatVM.throttleInterval = interval
+        for msg in chatVM.messages {
+            msg.renderer?.throttleInterval = interval
+        }
+    }
+}
+
+// MARK: - Slider Row
+
+private func sliderRow(
+    label: String,
+    value: Binding<Double>,
+    range: ClosedRange<Double>,
+    display: String
+) -> some View {
+    HStack(spacing: 8) {
+        SwiftUI.Text(label)
+            .font(.caption)
+            .foregroundColor(Color(white: 0.5))
+            .frame(width: 90, alignment: .leading)
+        Slider(value: value, in: range)
+            .tint(Color(white: 0.4))
+        SwiftUI.Text(display)
+            .font(.caption.monospacedDigit())
+            .foregroundColor(Color(white: 0.5))
+            .frame(width: 42, alignment: .trailing)
     }
 }
 
@@ -109,6 +232,8 @@ final class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMsg] = []
     @Published var isStreaming = false
     @Published var streamUpdateCount = 0
+    var throttleInterval: TimeInterval = 0.016
+    var tokenDelayNs: UInt64 = 25_000_000
     private var streamingTask: Task<Void, Never>?
 
     private let conversations: [(user: String, response: String)] = [
@@ -150,9 +275,7 @@ final class ChatViewModel: ObservableObject {
                     // Stream assistant response
                     let renderer = StreamingMarkdownRenderer(
                         processors: [AutoLinkTransformer(), LatexTransformer(), CitationProcessor()],
-                        throttleInterval: 0.016,
-                        blockAnimation: .easeOut(duration: 0.2),
-                        blockTransition: .opacity.combined(with: .offset(y: 4))
+                        throttleInterval: throttleInterval
                     )
                     messages.append(ChatMsg(role: .assistant, text: "", renderer: renderer))
 
@@ -160,7 +283,9 @@ final class ChatViewModel: ObservableObject {
                     var tokensSinceUpdate = 0
                     for token in tokens {
                         guard !Task.isCancelled else { return }
-                        try? await Task.sleep(nanoseconds: UInt64.random(in: 12_000_000...35_000_000))
+                        let delay = tokenDelayNs
+                        let jitter = UInt64(Double(delay) * 0.3)
+                        try? await Task.sleep(nanoseconds: delay + UInt64.random(in: 0...max(jitter, 1)))
                         renderer.append(token)
                         tokensSinceUpdate += 1
                         if tokensSinceUpdate >= 5 {

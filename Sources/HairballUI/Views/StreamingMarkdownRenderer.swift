@@ -63,22 +63,39 @@ public struct MarkdownDocumentView: View {
 /// ```
 public struct MarkdownBlocksView: View {
     @Environment(\.markdownTheme) private var theme
+    @Environment(\.tokenRevealConfig) private var revealConfig
 
     private let blocks: [IdentifiedBlock]
     private let isStreaming: Bool
     private let blockAnimation: Animation?
     private let blockTransition: AnyTransition
+    private let hasExplicitAnimation: Bool
 
     public init(
         blocks: [IdentifiedBlock],
         isStreaming: Bool = false,
-        blockAnimation: Animation? = .easeOut(duration: 0.15),
-        blockTransition: AnyTransition = .opacity
+        blockAnimation: Animation? = nil,
+        blockTransition: AnyTransition = .identity
     ) {
         self.blocks = blocks
         self.isStreaming = isStreaming
         self.blockAnimation = blockAnimation
         self.blockTransition = blockTransition
+        self.hasExplicitAnimation = blockAnimation != nil
+    }
+
+    /// Resolved animation — during streaming, derives from tokenRevealConfig
+    /// if no explicit blockAnimation was set.
+    private var effectiveAnimation: Animation? {
+        if hasExplicitAnimation { return blockAnimation }
+        guard isStreaming && revealConfig.isEnabled else { return nil }
+        return .easeOut(duration: revealConfig.duration)
+    }
+
+    private var effectiveTransition: AnyTransition {
+        if hasExplicitAnimation { return blockTransition }
+        guard isStreaming && revealConfig.isEnabled else { return .identity }
+        return .opacity
     }
 
     public var body: some View {
@@ -86,23 +103,22 @@ public struct MarkdownBlocksView: View {
             ForEach(blocks) { item in
                 let isLast = item.id == blocks.last?.id
 
-                // For the last block during streaming, use StreamingTextView
-                // to fade in new tokens. For all other blocks, render normally.
                 if isLast && isStreaming, case .paragraph(let content) = item.block {
                     StreamingTextView(content: content, isStreaming: true)
                 } else if isLast && isStreaming, case .heading(let level, let content) = item.block {
-                    // Headings can also be the actively streaming block
                     StreamingTextView(content: content, isStreaming: true)
                         .font(theme.headingStyle(for: level).font)
                         .fontWeight(theme.headingStyle(for: level).weight)
+                } else if isLast && isStreaming, case .codeBlock(let lang, let code) = item.block {
+                    StreamingCodeBlockView(language: lang, content: code, isStreaming: true)
                 } else {
                     BlockNodeView(node: item.block)
-                        .transition(blockTransition)
+                        .transition(effectiveTransition)
                 }
             }
         }
         .foregroundColor(theme.foregroundColor)
-        .animation(blockAnimation, value: blocks.map(\.id))
+        .animation(effectiveAnimation, value: blocks.map(\.id))
     }
 }
 
@@ -179,7 +195,10 @@ public final class StreamingMarkdownRenderer: ObservableObject {
     /// Parser options.
     public var parseOptions: ParseOptions
 
-    /// Minimum interval between re-parses (throttling for performance).
+    /// Minimum interval between re-parses.
+    /// This acts as a content buffer — tokens accumulate in memory but the
+    /// document only updates when the interval fires. Set this to match your
+    /// `TokenRevealConfig.duration` so animation batches align with parse batches.
     public var throttleInterval: TimeInterval
 
     /// Animation for new blocks appearing.
@@ -194,6 +213,8 @@ public final class StreamingMarkdownRenderer: ObservableObject {
     private var throttleTask: Task<Void, Never>?
     private var pendingUpdate = false
     private var lastUpdateTime: Date = .distantPast
+    /// Previous block list — used to detect structural instability in the last block
+    private var previousBlocks: [BlockNode] = []
 
     // MARK: - Init
 
@@ -201,8 +222,8 @@ public final class StreamingMarkdownRenderer: ObservableObject {
         processors: [any MarkdownProcessor] = [],
         parseOptions: ParseOptions = .default,
         throttleInterval: TimeInterval = 0.016,
-        blockAnimation: Animation? = .easeOut(duration: 0.2),
-        blockTransition: AnyTransition = .opacity
+        blockAnimation: Animation? = nil,
+        blockTransition: AnyTransition = .identity
     ) {
         self.processors = processors
         self.parseOptions = parseOptions
@@ -274,8 +295,49 @@ public final class StreamingMarkdownRenderer: ObservableObject {
         for processor in processors {
             doc = processor.process(doc)
         }
-        self.document = doc
-        self.identifiedBlocks = IdentifiedBlock.identify(doc.blocks)
+
+        let newBlocks: [BlockNode]
+        if isFinished {
+            // Final parse — render everything with full formatting
+            newBlocks = doc.blocks
+        } else {
+            // Streaming — the last block is always shown as a plain paragraph
+            // to prevent flashing between block types (paragraph → code → table)
+            // as syntax completes. All blocks before the last are fully committed
+            // (a new block started after them, proving their type is final).
+            newBlocks = stabilizeLastBlock(doc.blocks)
+        }
+
+        self.document = Document(blocks: newBlocks, metadata: doc.metadata)
+        self.identifiedBlocks = IdentifiedBlock.identify(newBlocks)
+        self.previousBlocks = doc.blocks
+    }
+
+    /// Prevents the last block from flashing during streaming.
+    ///
+    /// Most block types are recognized immediately by their prefix (`#`, `>`, `-`, `` ``` ``).
+    /// The main problem is tables: `| A | B |` parses as a paragraph until the separator
+    /// row `|---|---|` arrives, then it becomes a table and the paragraph disappears.
+    ///
+    /// Fix: if the last block is a paragraph starting with `|`, suppress it — it's likely
+    /// a table header that hasn't been recognized yet. It'll appear as a full table
+    /// once the separator arrives.
+    private func stabilizeLastBlock(_ blocks: [BlockNode]) -> [BlockNode] {
+        guard let last = blocks.last else { return blocks }
+
+        if case .paragraph(let content) = last {
+            let text = content.compactMap { node -> String? in
+                if case .text(let s) = node { return s }
+                return nil
+            }.joined().trimmingCharacters(in: .whitespaces)
+
+            // If it starts with | and has multiple |, it's a table row waiting for its separator
+            if text.hasPrefix("|") && text.filter({ $0 == "|" }).count >= 3 {
+                return Array(blocks.dropLast())
+            }
+        }
+
+        return blocks
     }
 }
 

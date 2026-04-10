@@ -13,8 +13,8 @@ public struct MarkdownBlockView: View {
 
     public init(
         block: BlockNode,
-        transition: AnyTransition = .opacity,
-        animation: Animation? = .default
+        transition: AnyTransition = .identity,
+        animation: Animation? = nil
     ) {
         self.block = block
         self.transition = transition
@@ -40,11 +40,8 @@ public struct AnimatedMarkdownBlocksView: View {
 
     public init(
         collections: [MarkdownBlockCollection],
-        blockTransition: AnyTransition = .asymmetric(
-            insertion: .opacity.combined(with: .move(edge: .bottom)),
-            removal: .opacity
-        ),
-        blockAnimation: Animation? = .easeInOut(duration: 0.25)
+        blockTransition: AnyTransition = .identity,
+        blockAnimation: Animation? = nil
     ) {
         self.collections = collections
         self.blockTransition = blockTransition
@@ -54,11 +51,8 @@ public struct AnimatedMarkdownBlocksView: View {
     /// Convenience init from a flat list of blocks (auto-chunks with one block per collection).
     public init(
         blocks: [BlockNode],
-        blockTransition: AnyTransition = .asymmetric(
-            insertion: .opacity.combined(with: .move(edge: .bottom)),
-            removal: .opacity
-        ),
-        blockAnimation: Animation? = .easeInOut(duration: 0.25)
+        blockTransition: AnyTransition = .identity,
+        blockAnimation: Animation? = nil
     ) {
         self.collections = blocks.enumerated().map { index, block in
             MarkdownBlockCollection(id: "block-\(index)", blocks: [block])

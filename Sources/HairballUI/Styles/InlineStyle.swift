@@ -129,43 +129,18 @@ public struct InlineTextRenderer {
         return combineSegments(segments)
     }
 
-    /// Renders inline nodes split into "revealed" (full opacity) and "fresh" (custom opacity).
-    /// Characters 0..<revealedCharacterCount render at full foregroundColor.
-    /// Characters from revealedCharacterCount onward render at foregroundColor * freshOpacity.
-    public func renderWithReveal(
+    /// Splits rendered inline content into two `AttributedString` halves at a character boundary.
+    ///
+    /// Use this when building custom `TokenAnimator` implementations to get the
+    /// revealed (already-seen) and fresh (just-arrived) portions.
+    public func renderAndSplit(
         _ nodes: [InlineNode],
-        revealedCharacterCount: Int,
-        freshOpacity: Double,
-        foregroundColor: Color
-    ) -> SwiftUI.Text {
+        at characterIndex: Int
+    ) -> (revealed: AttributedString, fresh: AttributedString) {
         let segments = renderSegments(nodes, style: InlineStyle())
         let fullAttr = mergeAttributedSegments(segments)
-
-        guard fullAttr.characters.count > revealedCharacterCount, revealedCharacterCount > 0 else {
-            // Everything is either fully revealed or fully fresh
-            if revealedCharacterCount == 0 {
-                // All fresh
-                var copy = fullAttr
-                copy.foregroundColor = foregroundColor.opacity(freshOpacity)
-                return SwiftUI.Text(copy)
-            }
-            // All revealed
-            return combineSegments(segments)
-        }
-
-        // Split at the reveal boundary
-        let splitIndex = fullAttr.characters.index(
-            fullAttr.startIndex,
-            offsetBy: min(revealedCharacterCount, fullAttr.characters.count)
-        )
-
-        var stablePart = AttributedString(fullAttr[fullAttr.startIndex..<splitIndex])
-        stablePart.foregroundColor = foregroundColor
-
-        var freshPart = AttributedString(fullAttr[splitIndex..<fullAttr.endIndex])
-        freshPart.foregroundColor = foregroundColor.opacity(freshOpacity)
-
-        return SwiftUI.Text(stablePart) + SwiftUI.Text(freshPart)
+        let parts = fullAttr.split(at: characterIndex)
+        return (parts.before, parts.after)
     }
 
     /// Merges all attributed segments into a single AttributedString (dropping image segments).
@@ -399,4 +374,25 @@ private func makeMTColor(from color: Color) -> MTColor {
     }
     return MTColor(white: 0, alpha: 1)
     #endif
+}
+
+// MARK: - AttributedString Helpers
+
+extension AttributedString {
+    /// Returns the first `count` characters, or the whole string if shorter.
+    func prefix(_ count: Int) -> AttributedString {
+        guard count > 0 else { return AttributedString() }
+        guard count < characters.count else { return self }
+        let end = characters.index(startIndex, offsetBy: count)
+        return AttributedString(self[startIndex..<end])
+    }
+
+    /// Splits at a character index, returning (before, after).
+    func split(at characterIndex: Int) -> (before: AttributedString, after: AttributedString) {
+        let clamped = min(max(characterIndex, 0), characters.count)
+        if clamped == 0 { return (AttributedString(), self) }
+        if clamped >= characters.count { return (self, AttributedString()) }
+        let idx = characters.index(startIndex, offsetBy: clamped)
+        return (AttributedString(self[startIndex..<idx]), AttributedString(self[idx...]))
+    }
 }
