@@ -133,8 +133,12 @@ public struct MarkdownBlocksView: View {
             if isStreaming && revealConfig.isEnabled {
                 revealDriver.timeConstant = revealConfig.duration
                 revealDriver.linearMode = revealConfig.mode == .linear
-                revealDriver.snapTo(0)
-                revealDriver.setTarget(Double(totalDocumentLength))
+                // If content already exists (mid-stream recreation), snap near
+                // the end so we don't replay. Only reveal from 0 when truly empty.
+                let total = Double(totalDocumentLength)
+                let snapPoint = total > 0 ? max(total - 1, 0) : 0
+                revealDriver.snapTo(snapPoint)
+                revealDriver.setTarget(total)
             }
         }
     }
