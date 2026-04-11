@@ -5,21 +5,14 @@ import Hairball
 
 /// How the reveal animation is driven.
 public enum TokenRevealMode: Equatable, Sendable {
-    /// Tokens are buffered into discrete batches. Each batch animates fully
-    /// before the next one starts. `duration` controls both animation length
-    /// and buffer window.
-    case batched
-
     /// A smooth cursor continuously chases the stream at 60fps.
     /// `duration` controls the smoothing time constant — lower values
     /// track the stream tightly, higher values create a trailing effect.
-    /// Speed adapts to gap size (faster when behind, slower when close).
     case continuous
 
     /// Constant-speed reveal at 60fps. The cursor advances at a fixed rate
     /// regardless of how much content is waiting. `duration` controls speed:
-    /// lower = faster, higher = slower. Keeps going after streaming ends
-    /// until all content is revealed.
+    /// lower = faster, higher = slower.
     case linear
 }
 
@@ -29,7 +22,6 @@ public enum TokenRevealMode: Equatable, Sendable {
 /// Use `.tokenAnimator()` to control the visual appearance.
 public struct TokenRevealConfig: Equatable, Sendable {
     /// Controls animation timing.
-    /// - **Batched**: batch duration and buffer window.
     /// - **Continuous**: smoothing time constant (lower = tighter tracking).
     /// - **Linear**: speed control — `duration` of 0.1 ≈ 1000 chars/sec, 1.0 ≈ 100 chars/sec.
     public var duration: Double
@@ -75,19 +67,21 @@ extension View {
 
 // MARK: - Smooth Reveal Driver
 
-/// Drives a smooth floating-point position toward a target at 60fps
-/// using exponential smoothing. Used by continuous reveal mode.
+/// Drives a single smooth cursor position toward a target at 60fps.
+/// One driver per `MarkdownBlocksView` — shared across all blocks.
 @MainActor
-final class SmoothRevealDriver: ObservableObject {
-    @Published var smoothPosition: Double = 0
-    @Published var hasCaughtUp: Bool = true
-    var timeConstant: Double = 0.15
-    var linearMode: Bool = false
+public final class SmoothRevealDriver: ObservableObject {
+    @Published public var smoothPosition: Double = 0
+    @Published public var hasCaughtUp: Bool = true
+    public var timeConstant: Double = 0.15
+    public var linearMode: Bool = false
 
     private var target: Double = 0
     private var timer: Timer?
 
-    func setTarget(_ newTarget: Double) {
+    public init() {}
+
+    public func setTarget(_ newTarget: Double) {
         target = newTarget
         hasCaughtUp = false
         guard timer == nil else { return }
@@ -98,19 +92,19 @@ final class SmoothRevealDriver: ObservableObject {
         }
     }
 
-    func snapTo(_ value: Double) {
+    public func snapTo(_ value: Double) {
         smoothPosition = value
         target = value
     }
 
-    /// Snap to target and stop — call when streaming ends.
-    func finish() {
+    public func finish() {
         smoothPosition = target
+        hasCaughtUp = true
         timer?.invalidate()
         timer = nil
     }
 
-    func stop() {
+    public func stop() {
         timer?.invalidate()
         timer = nil
     }
@@ -128,11 +122,9 @@ final class SmoothRevealDriver: ObservableObject {
         }
 
         if linearMode {
-            // Constant speed: 100 chars per `timeConstant` seconds
             let charsPerSec = 100.0 / max(timeConstant, 0.01)
             smoothPosition = min(smoothPosition + charsPerSec * dt, target)
         } else {
-            // Exponential smoothing with a minimum speed floor
             let alpha = 1.0 - exp(-dt / max(timeConstant, 0.005))
             let expStep = gap * alpha
             let minCharsPerSec = 2.0 / max(timeConstant, 0.01)
@@ -149,170 +141,69 @@ final class SmoothRevealDriver: ObservableObject {
     }
 }
 
-// MARK: - AnimatableTokenView
+// MARK: - StreamingTextView (Stateless)
 
-/// Bridges SwiftUI's `Animatable` protocol to produce real intermediate
-/// progress values during batched animation.
-private struct AnimatableTokenView: View, Animatable {
-    var progress: Double
-    let revealed: AttributedString
-    let fresh: AttributedString
-    let foregroundColor: Color
-    let animator: any TokenAnimator
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    var body: some View {
-        animator.animate(
-            revealed: revealed,
-            fresh: fresh,
-            progress: progress,
-            foregroundColor: foregroundColor
-        )
-    }
-}
-
-// MARK: - StreamingTextView
-
-/// Renders inline nodes with animation on newly arrived characters.
-///
-/// Supports two modes:
-/// - **Batched**: discrete animation cycles with coalescing.
-/// - **Continuous**: smooth 60fps pursuit of the stream position.
+/// Renders inline nodes with a reveal cursor at `revealPosition`.
+/// Pure view — no timers, no state. The cursor is driven externally
+/// by `MarkdownBlocksView`'s single `SmoothRevealDriver`.
 public struct StreamingTextView: View {
     @Environment(\.markdownTheme) private var theme
-    @Environment(\.tokenRevealConfig) private var revealConfig
     @Environment(\.tokenAnimator) private var animator
 
     private let content: [InlineNode]
-    private let isStreaming: Bool
+    private let revealPosition: Double
 
-    @State private var revealedLength: Int = 0
-    @State private var animatingToLength: Int = 0
-    @State private var animationProgress: Double = 1.0
-    @StateObject private var revealDriver = SmoothRevealDriver()
-
-    public init(content: [InlineNode], isStreaming: Bool = true) {
+    public init(content: [InlineNode], revealPosition: Double) {
         self.content = content
-        self.isStreaming = isStreaming
-    }
-
-    private var currentPlainLength: Int {
-        content.plainText.count
-    }
-
-    private var usesSmoothDriver: Bool {
-        revealConfig.mode == .continuous || revealConfig.mode == .linear
+        self.revealPosition = revealPosition
     }
 
     public var body: some View {
-        let useSmoothReveal = revealConfig.isEnabled && usesSmoothDriver
-            && (isStreaming || !revealDriver.hasCaughtUp)
-
-        if useSmoothReveal {
-            continuousBody
-        } else if isStreaming && revealConfig.isEnabled {
-            batchedBody
-        } else {
-            InlineTextRenderer(theme: theme).render(content)
-                .font(theme.bodyFont)
-                .foregroundColor(theme.foregroundColor)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
-        }
-    }
-
-    // MARK: - Continuous Mode
-
-    @ViewBuilder
-    private var continuousBody: some View {
         let renderer = InlineTextRenderer(theme: theme)
-        let splitAt = max(Int(revealDriver.smoothPosition), 0)
-        let totalLength = currentPlainLength
-        let (revealed, allFresh) = renderer.renderAndSplit(content, at: splitAt)
-
-        let frac = revealDriver.smoothPosition - Double(splitAt)
-        let edgeChar = allFresh.prefix(1)
+        let totalLength = content.plainText.count
+        let splitAt = max(min(Int(revealPosition), totalLength), 0)
+        let frac = revealPosition - Double(splitAt)
         let caughtUp = splitAt >= totalLength
+        let (revealed, allFresh) = renderer.renderAndSplit(content, at: splitAt)
 
         animator.animate(
             revealed: revealed,
-            fresh: caughtUp ? AttributedString() : edgeChar,
+            fresh: caughtUp ? AttributedString() : allFresh.prefix(1),
             progress: caughtUp ? 1.0 : frac,
             foregroundColor: theme.foregroundColor
         )
         .font(theme.bodyFont)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .textSelection(.enabled)
-        .onChange(of: currentPlainLength) { newLength in
-            revealDriver.timeConstant = revealConfig.duration
-            revealDriver.linearMode = revealConfig.mode == .linear
-            revealDriver.setTarget(Double(newLength))
-        }
-        .onChange(of: revealConfig.duration) { newDuration in
-            revealDriver.timeConstant = newDuration
-        }
-        .onChange(of: revealConfig.mode) { newMode in
-            revealDriver.linearMode = newMode == .linear
-        }
-        .onAppear {
-            revealDriver.timeConstant = revealConfig.duration
-            revealDriver.linearMode = revealConfig.mode == .linear
-            revealDriver.snapTo(0)
-            revealDriver.setTarget(Double(currentPlainLength))
-        }
-        .onDisappear {
-            revealDriver.stop()
-        }
-    }
-
-    // MARK: - Batched Mode
-
-    @ViewBuilder
-    private var batchedBody: some View {
-        let renderer = InlineTextRenderer(theme: theme)
-        let (revealed, allFresh) = renderer.renderAndSplit(content, at: revealedLength)
-        let fresh = allFresh.prefix(max(animatingToLength - revealedLength, 0))
-
-        AnimatableTokenView(
-            progress: animationProgress,
-            revealed: revealed,
-            fresh: fresh,
-            foregroundColor: theme.foregroundColor,
-            animator: animator
-        )
-        .font(theme.bodyFont)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .textSelection(.enabled)
-        .onChange(of: currentPlainLength) { newLength in
-            if animationProgress >= 1.0 && newLength > animatingToLength {
-                animatingToLength = newLength
-                startAnimationCycle()
-            }
-        }
-        .onAppear {
-            revealedLength = currentPlainLength
-            animatingToLength = currentPlainLength
-        }
-    }
-
-    private func startAnimationCycle() {
-        animationProgress = 0
-
-        withAnimation(.easeOut(duration: revealConfig.duration)) {
-            animationProgress = 1
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + revealConfig.duration) {
-            revealedLength = animatingToLength
-
-            if currentPlainLength > animatingToLength {
-                animatingToLength = currentPlainLength
-                startAnimationCycle()
-            }
-        }
     }
 }
+
+// MARK: - Block Plain Text Length
+
+/// Computes plain text character count for a block, used for cursor offset calculation.
+public func blockPlainTextLength(_ block: BlockNode) -> Int {
+    switch block {
+    case .paragraph(let content), .heading(_, let content):
+        return content.plainText.count
+    case .codeBlock(_, let code):
+        let trimmed = code.hasSuffix("\n") ? String(code.dropLast()) : code
+        return trimmed.count
+    case .blockQuote(let children):
+        return children.map(blockPlainTextLength).reduce(0, +)
+    case .orderedList(_, _, let items):
+        return items.flatMap(\.children).map(blockPlainTextLength).reduce(0, +)
+    case .unorderedList(_, let items):
+        return items.flatMap(\.children).map(blockPlainTextLength).reduce(0, +)
+    case .table(_, let head, let body):
+        let h = head.cells.flatMap(\.content).plainText.count
+        let b = body.flatMap(\.cells).map { $0.content.plainText.count }.reduce(0, +)
+        return h + b
+    case .htmlBlock(let content), .customBlock(_, let content), .latexBlock(let content):
+        return content.count
+    case .thematicBreak:
+        return 0
+    case .document(let children), .blockDirective(_, _, let children):
+        return children.map(blockPlainTextLength).reduce(0, +)
+    }
+}
+

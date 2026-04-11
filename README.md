@@ -158,8 +158,8 @@ struct GlowAnimator: TokenAnimator {
 
 ```swift
 .tokenReveal(TokenRevealConfig(
-    duration: 0.15,       // smoothing / speed / batch window
-    mode: .continuous     // or .linear or .batched
+    duration: 0.15,       // smoothing constant or speed
+    mode: .continuous     // or .linear
 ))
 
 // Presets
@@ -169,11 +169,10 @@ struct GlowAnimator: TokenAnimator {
 .tokenReveal(.default)    // 150ms continuous
 ```
 
-**Three reveal modes:**
+**Two reveal modes:**
 
-- **Continuous** — a smooth cursor chases the stream at 60fps using exponential smoothing. Speeds up when behind, slows when close. `duration` is the smoothing time constant. Set `throttleInterval` low (0.016).
-- **Linear** — constant-speed reveal at 60fps. `duration` controls speed (0.1 ≈ 1000 chars/sec, 1.0 ≈ 100 chars/sec). Keeps going at the same rate after streaming ends. Set `throttleInterval` low (0.016).
-- **Batched** — tokens are buffered into discrete batches. Each batch animates fully before the next starts. Set `throttleInterval` equal to `duration`.
+- **Continuous** — a smooth cursor chases the stream at 60fps using exponential smoothing. Speeds up when behind, slows when close. `duration` is the smoothing time constant.
+- **Linear** — constant-speed reveal at 60fps. `duration` controls speed (0.1 ≈ 1000 chars/sec, 1.0 ≈ 100 chars/sec). Keeps going at the same rate after streaming ends.
 
 **Block-level animation** — for new blocks appearing during streaming:
 
@@ -199,7 +198,7 @@ tokens → StreamingMarkdownRenderer → Document → MarkdownBlocksView
               (content buffer)            (animation timing)
 ```
 
-The renderer's `throttleInterval` controls how often tokens are parsed into blocks. The view's `tokenReveal` config controls how those blocks animate. For continuous mode, keep `throttleInterval` low. For batched mode, match them.
+The renderer's `throttleInterval` controls how often tokens are parsed into blocks. The view's `tokenReveal` config controls how the single reveal cursor animates across blocks. Keep `throttleInterval` low (0.016) so content is available for the cursor.
 
 ---
 

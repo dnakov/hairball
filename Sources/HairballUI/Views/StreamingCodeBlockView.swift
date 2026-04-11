@@ -2,32 +2,19 @@ import SwiftUI
 import Hairball
 
 /// Code block view with streaming reveal support.
-/// Uses the same `SmoothRevealDriver` / `TokenAnimator` system as `StreamingTextView`.
+/// Stateless — receives `revealPosition` from the parent's single cursor.
 struct StreamingCodeBlockView: View {
     @Environment(\.markdownTheme) private var theme
     @Environment(\.codeSyntaxHighlighter) private var highlighter
-    @Environment(\.tokenRevealConfig) private var revealConfig
     @Environment(\.tokenAnimator) private var animator
-    @StateObject private var revealDriver = SmoothRevealDriver()
     @State private var isCopied = false
-    @State private var cachedHighlight: AttributedString?
-    @State private var cachedContent: String = ""
 
     let language: String?
     let content: String
-    let isStreaming: Bool
+    let revealPosition: Double
 
     private var trimmedContent: String {
         content.hasSuffix("\n") ? String(content.dropLast()) : content
-    }
-
-    /// Highlighted code, cached to avoid re-highlighting every frame.
-    private var highlighted: AttributedString {
-        let text = trimmedContent
-        if text == cachedContent, let cached = cachedHighlight {
-            return cached
-        }
-        return highlighter.highlightCode(text, language: language)
     }
 
     var body: some View {
@@ -39,7 +26,7 @@ struct StreamingCodeBlockView: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                codeContent
+                codeText
                     .font(theme.codeBlock.font)
                     .foregroundColor(theme.codeBlock.textColor)
                     .padding(theme.codeBlock.padding)
@@ -49,29 +36,16 @@ struct StreamingCodeBlockView: View {
         }
         .background(theme.codeBlock.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: theme.codeBlock.cornerRadius))
-        .onChange(of: trimmedContent) { newContent in
-            cachedHighlight = highlighter.highlightCode(newContent, language: language)
-            cachedContent = newContent
-        }
     }
 
     @ViewBuilder
-    private var codeContent: some View {
-        if isStreaming && revealConfig.isEnabled && (revealConfig.mode == .continuous || revealConfig.mode == .linear) {
-            continuousCodeContent
-        } else {
-            SwiftUI.Text(highlighted)
-        }
-    }
-
-    @ViewBuilder
-    private var continuousCodeContent: some View {
-        let h = highlighted
-        let totalCount = h.characters.count
-        let splitAt = max(min(Int(revealDriver.smoothPosition), totalCount), 0)
-        let frac = revealDriver.smoothPosition - Double(splitAt)
+    private var codeText: some View {
+        let highlighted = highlighter.highlightCode(trimmedContent, language: language)
+        let totalCount = highlighted.characters.count
+        let splitAt = max(min(Int(revealPosition), totalCount), 0)
+        let frac = revealPosition - Double(splitAt)
         let caughtUp = splitAt >= totalCount
-        let parts = h.split(at: splitAt)
+        let parts = highlighted.split(at: splitAt)
 
         animator.animate(
             revealed: parts.before,
@@ -79,20 +53,6 @@ struct StreamingCodeBlockView: View {
             progress: caughtUp ? 1.0 : frac,
             foregroundColor: theme.codeBlock.textColor
         )
-        .onChange(of: trimmedContent) { _ in
-            revealDriver.timeConstant = revealConfig.duration
-            revealDriver.linearMode = revealConfig.mode == .linear
-            revealDriver.setTarget(Double(highlighted.characters.count))
-        }
-        .onAppear {
-            revealDriver.timeConstant = revealConfig.duration
-            revealDriver.linearMode = revealConfig.mode == .linear
-            revealDriver.snapTo(0)
-            revealDriver.setTarget(Double(highlighted.characters.count))
-        }
-        .onDisappear {
-            revealDriver.stop()
-        }
     }
 
     private func copyToClipboard() {
@@ -111,7 +71,6 @@ struct StreamingCodeBlockView: View {
 
 // MARK: - Shared Code Block Header
 
-/// Header bar shared between `CodeBlockView` and `StreamingCodeBlockView`.
 struct CodeBlockHeaderBar: View {
     @Environment(\.markdownTheme) private var theme
     let language: String?

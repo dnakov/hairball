@@ -71,6 +71,9 @@ public struct MarkdownBlocksView: View {
     private let blockTransition: AnyTransition
     private let hasExplicitAnimation: Bool
 
+    /// Single cursor driver shared across all blocks.
+    @StateObject private var revealDriver = SmoothRevealDriver()
+
     public init(
         blocks: [IdentifiedBlock],
         isStreaming: Bool = false,
@@ -84,8 +87,6 @@ public struct MarkdownBlocksView: View {
         self.hasExplicitAnimation = blockAnimation != nil
     }
 
-    /// Resolved animation — during streaming, derives from tokenRevealConfig
-    /// if no explicit blockAnimation was set.
     private var effectiveAnimation: Animation? {
         if hasExplicitAnimation { return blockAnimation }
         guard isStreaming && revealConfig.isEnabled else { return nil }
@@ -98,27 +99,108 @@ public struct MarkdownBlocksView: View {
         return .opacity
     }
 
+    private var usesCursorReveal: Bool {
+        revealConfig.isEnabled && (isStreaming || !revealDriver.hasCaughtUp)
+    }
+
+    /// Total plain text character count across all blocks.
+    private var totalDocumentLength: Int {
+        blocks.map { blockPlainTextLength($0.block) }.reduce(0, +)
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
-            ForEach(blocks) { item in
-                let isLast = item.id == blocks.last?.id
-
-                if isLast && isStreaming, case .paragraph(let content) = item.block {
-                    StreamingTextView(content: content, isStreaming: true)
-                } else if isLast && isStreaming, case .heading(let level, let content) = item.block {
-                    StreamingTextView(content: content, isStreaming: true)
-                        .font(theme.headingStyle(for: level).font)
-                        .fontWeight(theme.headingStyle(for: level).weight)
-                } else if isLast && isStreaming, case .codeBlock(let lang, let code) = item.block {
-                    StreamingCodeBlockView(language: lang, content: code, isStreaming: true)
-                } else {
-                    BlockNodeView(node: item.block)
-                        .transition(effectiveTransition)
-                        .animation(effectiveAnimation, value: item.id)
-                }
+            if usesCursorReveal {
+                cursorRevealBody
+            } else {
+                staticBody
             }
         }
         .foregroundColor(theme.foregroundColor)
+        .onChange(of: totalDocumentLength) { newTotal in
+            guard isStreaming && revealConfig.isEnabled else { return }
+            revealDriver.timeConstant = revealConfig.duration
+            revealDriver.linearMode = revealConfig.mode == .linear
+            revealDriver.setTarget(Double(newTotal))
+        }
+        .onChange(of: revealConfig.duration) { newDuration in
+            revealDriver.timeConstant = newDuration
+        }
+        .onChange(of: revealConfig.mode) { newMode in
+            revealDriver.linearMode = newMode == .linear
+        }
+        .onAppear {
+            if isStreaming && revealConfig.isEnabled {
+                revealDriver.timeConstant = revealConfig.duration
+                revealDriver.linearMode = revealConfig.mode == .linear
+                revealDriver.snapTo(0)
+                revealDriver.setTarget(Double(totalDocumentLength))
+            }
+        }
+    }
+
+    // MARK: - Cursor Reveal (continuous/linear)
+
+    @ViewBuilder
+    private var cursorRevealBody: some View {
+        let offsets = computeBlockOffsets()
+        let cursor = revealDriver.smoothPosition
+
+        ForEach(Array(blocks.enumerated()), id: \.element.id) { index, item in
+            let blockStart = offsets[index]
+            let blockLength = blockPlainTextLength(item.block)
+            let blockEnd = blockStart + blockLength
+
+            if cursor >= Double(blockEnd) {
+                // Fully revealed — render normally
+                BlockNodeView(node: item.block)
+            } else if cursor > Double(blockStart) {
+                // Partially revealed — render with cursor position
+                let localPos = cursor - Double(blockStart)
+                revealedBlockView(block: item.block, revealPosition: localPos)
+            }
+            // else: cursor hasn't reached this block yet — hidden
+        }
+    }
+
+    @ViewBuilder
+    private func revealedBlockView(block: BlockNode, revealPosition: Double) -> some View {
+        switch block {
+        case .paragraph(let content):
+            StreamingTextView(content: content, revealPosition: revealPosition)
+        case .heading(let level, let content):
+            StreamingTextView(content: content, revealPosition: revealPosition)
+                .font(theme.headingStyle(for: level).font)
+                .fontWeight(theme.headingStyle(for: level).weight)
+        case .codeBlock(let lang, let code):
+            StreamingCodeBlockView(language: lang, content: code, revealPosition: revealPosition)
+        default:
+            // For block types without character-level reveal (lists, tables, etc.),
+            // show fully once the cursor reaches them
+            BlockNodeView(node: block)
+        }
+    }
+
+    /// Compute cumulative character offsets for each block.
+    private func computeBlockOffsets() -> [Int] {
+        var offsets: [Int] = []
+        var running = 0
+        for item in blocks {
+            offsets.append(running)
+            running += blockPlainTextLength(item.block)
+        }
+        return offsets
+    }
+
+    // MARK: - Static / Batched Body
+
+    @ViewBuilder
+    private var staticBody: some View {
+        ForEach(blocks) { item in
+            BlockNodeView(node: item.block)
+                .transition(effectiveTransition)
+                .animation(effectiveAnimation, value: item.id)
+        }
     }
 }
 
