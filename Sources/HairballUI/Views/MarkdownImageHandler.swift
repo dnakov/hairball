@@ -3,7 +3,7 @@ import Hairball
 
 /// Handles image loading, caching, and display for markdown images.
 /// Matches `MarkdownImageHandler` from the original binary.
-public final class MarkdownImageHandler: ObservableObject {
+public final class MarkdownImageHandler: ObservableObject, @unchecked Sendable {
     @Published public var loadedImages: [String: Image] = [:]
     @Published public var loadingStates: [String: LoadingState] = [:]
 

@@ -1,12 +1,12 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 
 import PackageDescription
 
 let package = Package(
     name: "Hairball",
     platforms: [
-        .iOS(.v16),
-        .macOS(.v13),
+        .iOS(.v18),
+        .macOS(.v15),
     ],
     products: [
         .library(name: "Hairball", targets: ["Hairball"]),
@@ -30,7 +30,8 @@ let package = Package(
                 "Hairball",
                 .product(name: "SwiftMath", package: "SwiftMath"),
                 .product(name: "Highlightr", package: "Highlightr"),
-            ]
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "HairballTests",

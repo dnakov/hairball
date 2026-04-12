@@ -129,10 +129,16 @@ public struct InlineTextRenderer {
         return combineSegments(segments)
     }
 
+    /// Renders inline nodes into a single `AttributedString`.
+    /// Used by the TextRenderer path (iOS 18+) which handles splitting at the render level.
+    public func renderToAttributedString(_ nodes: [InlineNode]) -> AttributedString {
+        let segments = renderSegments(nodes, style: InlineStyle())
+        return mergeAttributedSegments(segments)
+    }
+
     /// Splits rendered inline content into two `AttributedString` halves at a character boundary.
     ///
-    /// Use this when building custom `TokenAnimator` implementations to get the
-    /// revealed (already-seen) and fresh (just-arrived) portions.
+    /// Splits the rendered attributed string into two halves at a character boundary.
     public func renderAndSplit(
         _ nodes: [InlineNode],
         at characterIndex: Int

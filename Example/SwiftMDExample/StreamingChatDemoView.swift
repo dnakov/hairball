@@ -4,16 +4,74 @@ import HairballUI
 
 // MARK: - Animator Picker
 
-enum AnimatorChoice: String, CaseIterable {
-    case fade = "Fade"
-    case reveal = "Reveal"
-    case instant = "Instant"
+// MARK: - Effect Picker
 
-    var animator: any TokenAnimator {
+enum EffectChoice: String, CaseIterable {
+    case fadeEdge = "Fade"
+    case glow = "Glow"
+    case wave = "Wave"
+    case fire = "Fire"
+    case sparkle = "✨"
+    case rainbow = "🌈"
+    case combo = "🔥✨"
+    case explosion = "💥"
+    case nyan = "🐱"
+    case matrix = "Matrix"
+    case crt = "CRT"
+    case shockwave = "Shock"
+    case instant = "Off"
+
+    var effect: (any StreamingTextEffect)? {
         switch self {
-        case .fade: return FadeTokenAnimator()
-        case .reveal: return RevealTokenAnimator()
-        case .instant: return InstantTokenAnimator()
+        case .fadeEdge: return FadeEdgeEffect(edgeWidth: 8)
+        case .glow: return GlowCursorEffect(glowColor: .cyan, glowRadius: 12)
+        case .wave: return WaveRevealEffect(amplitude: 6, wavelength: 12)
+        case .fire: return FireTrailEffect(trailLength: 18)
+        case .sparkle: return SparkleEffect(sparkleCount: 8, color: .yellow)
+        case .rainbow: return RainbowEffect(trailLength: 16)
+        case .explosion: return ExplosionEffect()
+        case .nyan: return NyanCatEffect()
+        case .matrix: return MatrixDecodeEffect()
+        case .crt: return PhosphorCRTEffect()
+        case .shockwave: return ShockwaveEffect()
+        case .combo: return CombinedEffect(
+            WaveRevealEffect(amplitude: 4, wavelength: 10),
+            GlowCursorEffect(glowColor: .orange, glowRadius: 10),
+            SparkleEffect(sparkleCount: 10, color: .yellow)
+        )
+        case .instant: return nil
+        }
+    }
+}
+
+enum GranularityChoice: String, CaseIterable {
+    case char = "Char"
+    case chunk = "Chunk"
+    case line = "Line"
+    case block = "Block"
+
+    func granularity(chunkSize: Int = 10) -> RevealGranularity {
+        switch self {
+        case .char: return .character
+        case .chunk: return .chunk(chunkSize)
+        case .line: return .line
+        case .block: return .block
+        }
+    }
+}
+
+/// Applies StreamingTextEffect when on iOS 18+, no-op otherwise.
+struct EffectModifier: ViewModifier {
+    let choice: EffectChoice
+    let granularity: RevealGranularity
+
+    func body(content: Content) -> some View {
+        if let effect = choice.effect {
+            content
+                .streamingTextEffect(effect)
+                .revealGranularity(granularity)
+        } else {
+            content
         }
     }
 }
@@ -22,10 +80,12 @@ struct StreamingChatDemoView: View {
     @StateObject private var chatVM = ChatViewModel()
     @State private var isAtBottom = true
     @State private var scrollToBottomTrigger = 0
-    @State private var animatorChoice: AnimatorChoice = .fade
+    @State private var effectChoice: EffectChoice = .fadeEdge
     @State private var revealMode: TokenRevealMode = .continuous
     @State private var revealDuration: Double = 0.15
     @State private var tokenSpeed: Double = 25  // ms per token
+    @State private var granularityChoice: GranularityChoice = .char
+    @State private var chunkSize: Double = 10
     @State private var showControls: Bool = true
 
     var body: some View {
@@ -56,11 +116,11 @@ struct StreamingChatDemoView: View {
                         proxy.scrollTo("bottom", anchor: .bottom)
                     }
                 }
-                .tokenAnimator(animatorChoice.animator)
-                .tokenReveal(animatorChoice == .instant
+                .tokenReveal(effectChoice == .instant
                     ? .disabled
                     : TokenRevealConfig(duration: revealDuration, mode: revealMode)
                 )
+                .modifier(EffectModifier(choice: effectChoice, granularity: granularityChoice.granularity(chunkSize: Int(chunkSize))))
             }
 
             // Scroll-to-bottom button — only visible when not at bottom
@@ -101,14 +161,14 @@ struct StreamingChatDemoView: View {
                     VStack(spacing: 6) {
                         // Animator style
                         HStack(spacing: 8) {
-                            Picker("Animation", selection: $animatorChoice) {
-                                ForEach(AnimatorChoice.allCases, id: \.self) { choice in
+                            Picker("Effect", selection: $effectChoice) {
+                                ForEach(EffectChoice.allCases, id: \.self) { choice in
                                     SwiftUI.Text(choice.rawValue).tag(choice)
                                 }
                             }
                             .pickerStyle(.segmented)
 
-                            if animatorChoice != .instant {
+                            if effectChoice != .instant {
                                 Picker("Mode", selection: $revealMode) {
                                     SwiftUI.Text("Smooth").tag(TokenRevealMode.continuous)
                                     SwiftUI.Text("Linear").tag(TokenRevealMode.linear)
@@ -118,7 +178,28 @@ struct StreamingChatDemoView: View {
                             }
                         }
 
-                        if animatorChoice != .instant {
+                        if effectChoice != .instant {
+                            HStack(spacing: 8) {
+                                SwiftUI.Text("Reveal")
+                                    .font(.caption)
+                                    .foregroundColor(Color(white: 0.5))
+                                Picker("Granularity", selection: $granularityChoice) {
+                                    ForEach(GranularityChoice.allCases, id: \.self) { g in
+                                        SwiftUI.Text(g.rawValue).tag(g)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                            }
+
+                            if granularityChoice == .chunk {
+                                sliderRow(
+                                    label: "Chunk Size",
+                                    value: $chunkSize,
+                                    range: 2...50,
+                                    display: "\(Int(chunkSize))"
+                                )
+                            }
+
                             let label = revealMode == .continuous ? "Smoothing" : "Speed"
                             sliderRow(
                                 label: label,
@@ -282,17 +363,29 @@ final class ChatViewModel: ObservableObject {
 
                     let tokens = tokenize(dedent(convo.response))
                     var tokensSinceUpdate = 0
-                    for token in tokens {
+                    var i = 0
+                    while i < tokens.count {
                         guard !Task.isCancelled else { return }
-                        let delay = tokenDelayNs
-                        let jitter = UInt64(Double(delay) * 0.3)
-                        try? await Task.sleep(nanoseconds: delay + UInt64.random(in: 0...max(jitter, 1)))
-                        renderer.append(token)
-                        tokensSinceUpdate += 1
+
+                        // Simulate LLM behavior: occasional bursts of 3-12 tokens
+                        // with pauses between, like real API streaming
+                        let burstSize = Int.random(in: 3...12)
+                        let end = min(i + burstSize, tokens.count)
+                        for j in i..<end {
+                            renderer.append(tokens[j])
+                        }
+                        tokensSinceUpdate += (end - i)
+                        i = end
+
                         if tokensSinceUpdate >= 5 {
                             streamUpdateCount += 1
                             tokensSinceUpdate = 0
                         }
+
+                        // Pause between bursts — varies like real network chunks
+                        let delay = tokenDelayNs
+                        let burstPause = delay * UInt64.random(in: 2...6)
+                        try? await Task.sleep(nanoseconds: burstPause)
                     }
                     renderer.finish()
                     streamUpdateCount += 1
@@ -322,12 +415,17 @@ final class ChatViewModel: ObservableObject {
         }.joined(separator: "\n")
     }
 
+    /// Simulates LLM token chunking — variable-size pieces (3-8 chars),
+    /// breaking on word/punctuation boundaries like real tokenizers.
     private func tokenize(_ text: String) -> [String] {
         var tokens: [String] = []
         var cur = ""
         for c in text {
             cur.append(c)
-            if c == " " || c == "\n" || cur.count >= 5 {
+            let len = cur.count
+            let atBreak = c == " " || c == "\n" || c == "." || c == "," || c == ":" || c == "`"
+            let chunkSize = Int.random(in: 3...8)
+            if atBreak || len >= chunkSize {
                 tokens.append(cur)
                 cur = ""
             }

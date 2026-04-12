@@ -83,7 +83,7 @@ public struct DefaultMarkdownViewComponentProvider: MarkdownViewComponentProvide
 
 // MARK: - Type-erased wrapper
 
-public struct AnyMarkdownViewComponentProvider: MarkdownViewComponentProvider {
+public struct AnyMarkdownViewComponentProvider: MarkdownViewComponentProvider, @unchecked Sendable {
     private let _makeHeading: (Int, [InlineNode], BlockConfiguration) -> AnyView
     private let _makeParagraph: ([InlineNode], BlockConfiguration) -> AnyView
     private let _makeCodeBlock: (String?, String, BlockConfiguration) -> AnyView

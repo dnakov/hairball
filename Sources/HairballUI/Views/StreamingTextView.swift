@@ -6,12 +6,10 @@ import Hairball
 /// How the reveal animation is driven.
 public enum TokenRevealMode: Equatable, Sendable {
     /// A smooth cursor continuously chases the stream at 60fps.
-    /// `duration` controls the smoothing time constant — lower values
-    /// track the stream tightly, higher values create a trailing effect.
+    /// `duration` controls the smoothing time constant.
     case continuous
 
-    /// Constant-speed reveal at 60fps. The cursor advances at a fixed rate
-    /// regardless of how much content is waiting. `duration` controls speed:
+    /// Constant-speed reveal at 60fps. `duration` controls speed:
     /// lower = faster, higher = slower.
     case linear
 }
@@ -19,9 +17,7 @@ public enum TokenRevealMode: Equatable, Sendable {
 // MARK: - Token Reveal Configuration
 
 /// Controls the timing and mode of token reveal animations during streaming.
-/// Use `.tokenAnimator()` to control the visual appearance.
 public struct TokenRevealConfig: Equatable, Sendable {
-    /// Controls animation timing.
     /// - **Continuous**: smoothing time constant (lower = tighter tracking).
     /// - **Linear**: speed control — `duration` of 0.1 ≈ 1000 chars/sec, 1.0 ≈ 100 chars/sec.
     public var duration: Double
@@ -68,7 +64,6 @@ extension View {
 // MARK: - Smooth Reveal Driver
 
 /// Drives a single smooth cursor position toward a target at 60fps.
-/// One driver per `MarkdownBlocksView` — shared across all blocks.
 @MainActor
 public final class SmoothRevealDriver: ObservableObject {
     @Published public var smoothPosition: Double = 0
@@ -86,9 +81,7 @@ public final class SmoothRevealDriver: ObservableObject {
         hasCaughtUp = false
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.tick()
-            }
+            MainActor.assumeIsolated { self?.tick() }
         }
     }
 
@@ -136,51 +129,37 @@ public final class SmoothRevealDriver: ObservableObject {
         }
     }
 
-    deinit {
-        timer?.invalidate()
-    }
+    deinit { timer?.invalidate() }
 }
 
-// MARK: - StreamingTextView (Stateless)
+// MARK: - StreamingTextView
 
-/// Renders inline nodes with a reveal cursor at `revealPosition`.
-/// Pure view — no timers, no state. The cursor is driven externally
-/// by `MarkdownBlocksView`'s single `SmoothRevealDriver`.
+/// Renders inline nodes with a reveal cursor. Stateless — cursor driven
+/// externally by `MarkdownBlocksView`'s `SmoothRevealDriver`.
+
 public struct StreamingTextView: View {
     @Environment(\.markdownTheme) private var theme
-    @Environment(\.tokenAnimator) private var animator
 
     private let content: [InlineNode]
     private let revealPosition: Double
+    private let blockComplete: Bool
 
-    public init(content: [InlineNode], revealPosition: Double) {
+    public init(content: [InlineNode], revealPosition: Double, blockComplete: Bool = true) {
         self.content = content
         self.revealPosition = revealPosition
+        self.blockComplete = blockComplete
     }
 
     public var body: some View {
-        let renderer = InlineTextRenderer(theme: theme)
-        let totalLength = content.plainText.count
-        let splitAt = max(min(Int(revealPosition), totalLength), 0)
-        let frac = revealPosition - Double(splitAt)
-        let caughtUp = splitAt >= totalLength
-        let (revealed, allFresh) = renderer.renderAndSplit(content, at: splitAt)
-
-        animator.animate(
-            revealed: revealed,
-            fresh: caughtUp ? AttributedString() : allFresh.prefix(1),
-            progress: caughtUp ? 1.0 : frac,
-            foregroundColor: theme.foregroundColor
-        )
-        .font(theme.bodyFont)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .textSelection(.enabled)
+        let fullAttr = InlineTextRenderer(theme: theme).renderToAttributedString(content)
+        RevealedText(attributedString: fullAttr, revealPosition: revealPosition, blockComplete: blockComplete)
+            .font(theme.bodyFont)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
 // MARK: - Block Plain Text Length
 
-/// Computes plain text character count for a block, used for cursor offset calculation.
 public func blockPlainTextLength(_ block: BlockNode) -> Int {
     switch block {
     case .paragraph(let content), .heading(_, let content):
@@ -206,4 +185,3 @@ public func blockPlainTextLength(_ block: BlockNode) -> Int {
         return children.map(blockPlainTextLength).reduce(0, +)
     }
 }
-

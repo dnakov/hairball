@@ -1,17 +1,24 @@
 import SwiftUI
 import Hairball
 
-/// Code block view with streaming reveal support.
-/// Stateless — receives `revealPosition` from the parent's single cursor.
+/// Code block with streaming reveal. Uses `RevealedText` for the code content.
+
 struct StreamingCodeBlockView: View {
     @Environment(\.markdownTheme) private var theme
     @Environment(\.codeSyntaxHighlighter) private var highlighter
-    @Environment(\.tokenAnimator) private var animator
     @State private var isCopied = false
 
     let language: String?
     let content: String
     let revealPosition: Double
+    let blockComplete: Bool
+
+    init(language: String?, content: String, revealPosition: Double, blockComplete: Bool = true) {
+        self.language = language
+        self.content = content
+        self.revealPosition = revealPosition
+        self.blockComplete = blockComplete
+    }
 
     private var trimmedContent: String {
         content.hasSuffix("\n") ? String(content.dropLast()) : content
@@ -26,33 +33,19 @@ struct StreamingCodeBlockView: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                codeText
-                    .font(theme.codeBlock.font)
-                    .foregroundColor(theme.codeBlock.textColor)
-                    .padding(theme.codeBlock.padding)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                RevealedText(
+                    attributedString: highlighter.highlightCode(trimmedContent, language: language),
+                    revealPosition: revealPosition,
+                    blockComplete: blockComplete
+                )
+                .font(theme.codeBlock.font)
+                .foregroundColor(theme.codeBlock.textColor)
+                .padding(theme.codeBlock.padding)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .background(theme.codeBlock.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: theme.codeBlock.cornerRadius))
-    }
-
-    @ViewBuilder
-    private var codeText: some View {
-        let highlighted = highlighter.highlightCode(trimmedContent, language: language)
-        let totalCount = highlighted.characters.count
-        let splitAt = max(min(Int(revealPosition), totalCount), 0)
-        let frac = revealPosition - Double(splitAt)
-        let caughtUp = splitAt >= totalCount
-        let parts = highlighted.split(at: splitAt)
-
-        animator.animate(
-            revealed: parts.before,
-            fresh: caughtUp ? AttributedString() : parts.after.prefix(1),
-            progress: caughtUp ? 1.0 : frac,
-            foregroundColor: theme.codeBlock.textColor
-        )
     }
 
     private func copyToClipboard() {

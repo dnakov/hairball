@@ -64,6 +64,7 @@ public struct MarkdownDocumentView: View {
 public struct MarkdownBlocksView: View {
     @Environment(\.markdownTheme) private var theme
     @Environment(\.tokenRevealConfig) private var revealConfig
+    @Environment(\.revealGranularity) private var granularity
 
     private let blocks: [IdentifiedBlock]
     private let isStreaming: Bool
@@ -149,49 +150,163 @@ public struct MarkdownBlocksView: View {
     private var cursorRevealBody: some View {
         let offsets = computeBlockOffsets()
         let cursor = revealDriver.smoothPosition
+        // For non-character granularity, keep blocks in the reveal path
+        // so the effect can render the settle transition (e.g. Matrix decode flash)
+        let canShortcut = granularity == .character
 
         ForEach(Array(blocks.enumerated()), id: \.element.id) { index, item in
             let blockStart = offsets[index]
             let blockLength = blockPlainTextLength(item.block)
             let blockEnd = blockStart + blockLength
+            let isLastBlock = index == blocks.count - 1
+            let complete = !isLastBlock || !isStreaming
 
-            if cursor >= Double(blockEnd) {
-                // Fully revealed — render normally
+            if cursor >= Double(blockEnd) && complete && canShortcut {
+                // Fully revealed, block finalized, character granularity — render normally
                 BlockNodeView(node: item.block)
             } else if cursor > Double(blockStart) {
-                // Partially revealed — render with cursor position
+                // In reveal path — partially revealed, still growing, or non-character granularity
                 let localPos = cursor - Double(blockStart)
-                revealedBlockView(block: item.block, revealPosition: localPos)
+                revealedBlockView(block: item.block, revealPosition: localPos, complete: complete)
             }
             // else: cursor hasn't reached this block yet — hidden
         }
     }
 
-    @ViewBuilder
-    private func revealedBlockView(block: BlockNode, revealPosition: Double) -> some View {
+    private func revealedBlockView(block: BlockNode, revealPosition: Double, complete: Bool) -> AnyView {
         switch block {
         case .paragraph(let content):
-            StreamingTextView(content: content, revealPosition: revealPosition)
+            return AnyView(StreamingTextView(content: content, revealPosition: revealPosition, blockComplete: complete))
         case .heading(let level, let content):
-            StreamingTextView(content: content, revealPosition: revealPosition)
+            return AnyView(StreamingTextView(content: content, revealPosition: revealPosition, blockComplete: complete)
                 .font(theme.headingStyle(for: level).font)
-                .fontWeight(theme.headingStyle(for: level).weight)
+                .fontWeight(theme.headingStyle(for: level).weight))
         case .codeBlock(let lang, let code):
-            StreamingCodeBlockView(language: lang, content: code, revealPosition: revealPosition)
+            return AnyView(StreamingCodeBlockView(language: lang, content: code, revealPosition: revealPosition, blockComplete: complete))
+        case .blockQuote(let children):
+            return AnyView(BlockquoteContainer {
+                cursorRevealBlocks(children, cursor: revealPosition, parentComplete: complete)
+            })
+        case .unorderedList(let tight, let items):
+            return AnyView(cursorRevealList(items: items, cursor: revealPosition, tight: tight, parentComplete: complete))
+        case .orderedList(let startIndex, _, let items):
+            return AnyView(cursorRevealList(items: items, cursor: revealPosition, tight: false, parentComplete: complete, startIndex: startIndex))
         default:
-            // For block types without character-level reveal (lists, tables, etc.),
-            // show fully once the cursor reaches them
-            BlockNodeView(node: block)
+            return AnyView(BlockNodeView(node: block))
         }
     }
 
-    /// Compute cumulative character offsets for each block.
+    // MARK: - Recursive Cursor Dispatch
+
+    @ViewBuilder
+    private func cursorRevealBlocks(_ children: [BlockNode], cursor: Double, parentComplete: Bool) -> some View {
+        let offsets = computeOffsets(for: children)
+        let canShortcut = granularity == .character
+        ForEach(Array(children.enumerated()), id: \.offset) { index, child in
+            let start = offsets[index]
+            let length = blockPlainTextLength(child)
+            let end = start + length
+            let isLastChild = index == children.count - 1
+            let complete = !isLastChild || parentComplete
+
+            if cursor >= Double(end) && complete && canShortcut {
+                BlockNodeView(node: child)
+            } else if cursor > Double(start) {
+                revealedBlockView(block: child, revealPosition: cursor - Double(start), complete: complete)
+            }
+        }
+    }
+
+    private func cursorRevealList(
+        items: [ListItem],
+        cursor: Double,
+        tight: Bool,
+        parentComplete: Bool,
+        startIndex: Int? = nil
+    ) -> some View {
+        let lengths = items.map { $0.children.map(blockPlainTextLength).reduce(0, +) }
+        let offsets = Self.cumulativeOffsets(lengths)
+        let spacing = tight ? theme.list.tightItemSpacing : theme.list.itemSpacing
+
+        return VStack(alignment: .leading, spacing: spacing) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                let isLastItem = index == items.count - 1
+                let complete = !isLastItem || parentComplete
+                cursorRevealListItem(
+                    item: item,
+                    index: index,
+                    cursor: cursor,
+                    start: offsets[index],
+                    end: offsets[index] + lengths[index],
+                    spacing: spacing,
+                    startIndex: startIndex,
+                    complete: complete
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cursorRevealListItem(
+        item: ListItem,
+        index: Int,
+        cursor: Double,
+        start: Int,
+        end: Int,
+        spacing: CGFloat,
+        startIndex: Int?,
+        complete: Bool
+    ) -> some View {
+        if cursor > Double(start) {
+            let marker = listMarker(for: item, index: index, startIndex: startIndex)
+            ListItemContainer(marker: marker) {
+                listItemChildren(item: item, cursor: cursor, start: start, end: end, spacing: spacing, parentComplete: complete)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func listItemChildren(
+        item: ListItem,
+        cursor: Double,
+        start: Int,
+        end: Int,
+        spacing: CGFloat,
+        parentComplete: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            if cursor >= Double(end) && parentComplete && granularity == .character {
+                ForEach(Array(item.children.enumerated()), id: \.offset) { _, block in
+                    BlockNodeView(node: block)
+                }
+            } else {
+                cursorRevealBlocks(item.children, cursor: cursor - Double(start), parentComplete: parentComplete)
+            }
+        }
+    }
+
+    private func listMarker(for item: ListItem, index: Int, startIndex: Int?) -> ListMarker {
+        if let startIndex { return .ordered(startIndex + index) }
+        if let checkbox = item.checkbox { return .checkbox(checkbox) }
+        return .unordered
+    }
+
+    // MARK: - Offset Computation
+
     private func computeBlockOffsets() -> [Int] {
+        computeOffsets(for: blocks.map(\.block))
+    }
+
+    private func computeOffsets(for children: [BlockNode]) -> [Int] {
+        Self.cumulativeOffsets(children.map(blockPlainTextLength))
+    }
+
+    private static func cumulativeOffsets(_ lengths: [Int]) -> [Int] {
         var offsets: [Int] = []
         var running = 0
-        for item in blocks {
+        for length in lengths {
             offsets.append(running)
-            running += blockPlainTextLength(item.block)
+            running += length
         }
         return offsets
     }

@@ -95,7 +95,7 @@ extension View {
 }
 
 /// Type-erased code block renderer.
-public struct AnyCodeBlockRenderer: CodeBlockRenderer {
+public struct AnyCodeBlockRenderer: CodeBlockRenderer, @unchecked Sendable {
     private let _makeBody: (CodeBlockConfiguration) -> AnyView
 
     public init(_ renderer: some CodeBlockRenderer) {
