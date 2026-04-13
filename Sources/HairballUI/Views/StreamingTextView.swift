@@ -91,10 +91,12 @@ public final class SmoothRevealDriver: ObservableObject {
     }
 
     public func finish() {
+        // Let the cursor animate to the end naturally.
+        // If the timer is already running, it will catch up and set hasCaughtUp.
+        // If no timer is running (already at target), snap immediately.
+        if timer != nil { return }
         smoothPosition = target
         hasCaughtUp = true
-        timer?.invalidate()
-        timer = nil
     }
 
     public func stop() {

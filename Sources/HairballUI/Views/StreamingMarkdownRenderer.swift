@@ -109,15 +109,31 @@ public struct MarkdownBlocksView: View {
         blocks.map { blockPlainTextLength($0.block) }.reduce(0, +)
     }
 
+    @State private var isRevealing = false
+
     public var body: some View {
         VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
-            if usesCursorReveal {
+            if isRevealing {
                 cursorRevealBody
+                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
             } else {
                 staticBody
+                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
             }
         }
         .foregroundColor(theme.foregroundColor)
+        .onAppear {
+            isRevealing = usesCursorReveal
+        }
+        .onChange(of: usesCursorReveal) { _, newValue in
+            if newValue {
+                isRevealing = true
+            } else {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    isRevealing = false
+                }
+            }
+        }
         .onChange(of: totalDocumentLength) { newTotal in
             guard isStreaming && revealConfig.isEnabled else { return }
             revealDriver.timeConstant = revealConfig.duration
@@ -158,8 +174,7 @@ public struct MarkdownBlocksView: View {
             let blockStart = offsets[index]
             let blockLength = blockPlainTextLength(item.block)
             let blockEnd = blockStart + blockLength
-            let isLastBlock = index == blocks.count - 1
-            let complete = !isLastBlock || !isStreaming
+            let complete = !isStreaming && revealDriver.hasCaughtUp
 
             if cursor >= Double(blockEnd) && complete && canShortcut {
                 // Fully revealed, block finalized, character granularity — render normally
@@ -206,8 +221,7 @@ public struct MarkdownBlocksView: View {
             let start = offsets[index]
             let length = blockPlainTextLength(child)
             let end = start + length
-            let isLastChild = index == children.count - 1
-            let complete = !isLastChild || parentComplete
+            let complete = parentComplete
 
             if cursor >= Double(end) && complete && canShortcut {
                 BlockNodeView(node: child)
@@ -230,8 +244,7 @@ public struct MarkdownBlocksView: View {
 
         return VStack(alignment: .leading, spacing: spacing) {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                let isLastItem = index == items.count - 1
-                let complete = !isLastItem || parentComplete
+                let complete = parentComplete
                 cursorRevealListItem(
                     item: item,
                     index: index,

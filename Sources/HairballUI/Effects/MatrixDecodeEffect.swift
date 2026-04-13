@@ -59,55 +59,57 @@ public struct MatrixDecodeEffect: StreamingTextEffect {
                 continue
             }
 
-            // Unsettled but revealed — character rain
+            // Unsettled but revealed — matrix decode with gradual real-char reveal
             let b = slice.typographicBounds
-
-            // Column identity from x position (stable across frames)
             let colHash = abs(Int(x * 7.3 + 100)) &+ 1
 
-            // Glyph cycling — each column has its own speed and phase
+            // How far behind the cursor this char is (0 = just revealed, large = old)
+            let age = revealedCount - index
+            let decodeDelay = 3 + (colHash % 5) // 3-7 frames of scramble
+            let decoded = age > decodeDelay
+
+            // Rain positioning (shared by scrambled and decoded chars)
+            let yNorm = (y - minY) / totalHeight
+            let rainTime = time > 0 ? time : Double(revealedCount) / 60.0
+            let rainSpeed = 0.5 + Double(colHash % 7) * 0.3
+            let rainOffset = Double(colHash % 13) / 13.0
+            let rainPos = fmod(rainTime * rainSpeed + rainOffset, 1.6) - 0.3
+            let distFromHead = yNorm - rainPos
+            let streakLen = 0.15 + Double(colHash % 5) * 0.04
+
+            let isHead = distFromHead >= -0.02 && distFromHead <= 0.02
+            let brightness: Double
+            if isHead {
+                brightness = 1.0
+            } else if distFromHead < -0.02 && distFromHead >= -streakLen {
+                let t = abs(distFromHead) / streakLen
+                brightness = max(0.3, 0.9 * (1.0 - t))
+            } else {
+                let flicker = ((frame * 3 + index * 7) % 10)
+                brightness = flicker < 2 ? 0.35 : 0.15
+            }
+
+            if decoded {
+                // Decoded — draw the REAL character but with matrix green tint
+                // that pulses with the rain. Settled chars draw plain.
+                if index < settledCount {
+                    ctx.draw(slice)
+                } else {
+                    let rainGlow = isHead ? 0.6 : max(brightness * 0.3, 0.05)
+                    var c = ctx
+                    c.addFilter(.colorMultiply(matrixColor.opacity(rainGlow)))
+                    c.draw(slice)
+                }
+                continue
+            }
+
+            // Still scrambling — show cycling random matrix glyphs
             let speed = 2 + (colHash % 4)
             let glyphFrame = (frame + colHash * 31) / speed
             let seed = ((glyphFrame * 17 + index * 13) % Self.charCount + Self.charCount) % Self.charCount
             let ch = Self.matrixChars[seed]
 
-            // Normalize y position within the block: 0 = top, 1 = bottom
-            let yNorm = (y - minY) / totalHeight
-
-            // Rain head position falls top-to-bottom over time
-            // Each column has a different speed and start offset
-            let rainTime = time > 0 ? time : Double(revealedCount) / 60.0
-            let rainSpeed = 0.5 + Double(colHash % 7) * 0.3      // units per second
-            let rainOffset = Double(colHash % 13) / 13.0          // staggered start
-            let rainPos = fmod(rainTime * rainSpeed + rainOffset, 1.6) - 0.3
-            // rainPos sweeps from -0.3 to 1.3 then wraps — gives top entry and bottom exit
-
-            let distFromHead = yNorm - rainPos
-            let streakLen = 0.15 + Double(colHash % 5) * 0.04  // 0.15–0.35 of block height
-
-            let brightness: Double
-            if distFromHead >= -0.02 && distFromHead <= 0.02 {
-                // Head of the rain drop — brightest
-                brightness = 1.0
-            } else if distFromHead > 0.02 && distFromHead <= streakLen {
-                // Trail behind the head (above it since head moves down)
-                // Wait — distFromHead > 0 means yNorm > rainPos, meaning below the head
-                // Actually: head is at rainPos, trail is chars the head already passed (above)
-                // So trail is where distFromHead < 0
-                brightness = 0.1
-            } else if distFromHead < -0.02 && distFromHead >= -streakLen {
-                // Trail — head has passed this position going downward
-                let t = abs(distFromHead) / streakLen
-                brightness = max(0.1, 0.8 * (1.0 - t))
-            } else {
-                // Background — random dim flicker
-                let flicker = ((frame * 3 + index * 7) % 10)
-                brightness = flicker < 2 ? 0.25 : 0.08
-            }
-
-            let isHead = distFromHead >= -0.02 && distFromHead <= 0.02
             let color = isHead ? Color(red: 0.7, green: 1.0, blue: 0.7) : matrixColor
-
             drawGlyph(ch, opacity: brightness, color: color, originX: b.origin.x, originY: b.origin.y, width: b.width, in: &ctx)
         }
     }

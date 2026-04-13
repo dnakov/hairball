@@ -44,7 +44,7 @@ extension StreamingTextEffect {
     /// all unsettled characters when granularity pushes settledCount behind the cursor.
     /// Use this instead of a hardcoded trail width to respect `RevealGranularity`.
     public func effectiveTrail(ownTrail: Int, revealedCount: Int, settledCount: Int) -> Int {
-        max(ownTrail, revealedCount - settledCount)
+        ownTrail
     }
 
     /// Counts the total number of character slices in the layout.
@@ -106,29 +106,32 @@ struct StreamingEffectRenderer: TextRenderer {
     let time: Double
 
     func draw(layout: Text.Layout, in ctx: inout GraphicsContext) {
+        let totalGlyphs = layout.flatMap { $0 }.flatMap { $0 }.count
+        // If the block is fully revealed (cursor has moved past), treat as settled
+        let effectiveComplete = blockComplete || revealedCount >= totalGlyphs
+
         let settled: Int
         switch granularity {
         case .character:
             settled = revealedCount
         case .block:
-            settled = blockComplete ? revealedCount : 0
+            settled = effectiveComplete ? revealedCount : 0
         case .chunk(let n):
             let clamped = max(n, 1)
-            if blockComplete {
+            if effectiveComplete {
                 settled = revealedCount
             } else {
                 settled = (revealedCount / clamped) * clamped
             }
         case .line:
-            if blockComplete {
+            if effectiveComplete {
                 settled = revealedCount
             } else {
                 settled = settledToLine(revealedCount, layout: layout)
             }
         }
 
-        // When everything is settled, draw normally — no effect overhead
-        if settled >= revealedCount {
+        if settled >= revealedCount && effectiveComplete {
             for line in layout { for run in line { for slice in run { ctx.draw(slice) } } }
             return
         }
