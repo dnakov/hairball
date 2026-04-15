@@ -1,0 +1,142 @@
+{
+  "codeFence" : [
+    {
+      "input" : "Hello world\n",
+      "rawBlockTypes" : [
+        "paragraph"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph"
+      ],
+      "stage" : 0
+    },
+    {
+      "input" : "Hello world\n```",
+      "rawBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stage" : 1
+    },
+    {
+      "input" : "Hello world\n```swift",
+      "rawBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stage" : 2
+    },
+    {
+      "input" : "Hello world\n```swift\n",
+      "rawBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stage" : 3
+    },
+    {
+      "input" : "Hello world\n```swift\nlet x = 42",
+      "rawBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stage" : 4
+    },
+    {
+      "input" : "Hello world\n```swift\nlet x = 42\n",
+      "rawBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stage" : 5
+    },
+    {
+      "input" : "Hello world\n```swift\nlet x = 42\n```",
+      "rawBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "codeBlock"
+      ],
+      "stage" : 6
+    }
+  ],
+  "table" : [
+    {
+      "input" : "Text\n",
+      "rawBlockTypes" : [
+        "paragraph"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph"
+      ],
+      "stage" : 0
+    },
+    {
+      "input" : "Text\n| A | B |",
+      "rawBlockTypes" : [
+        "paragraph"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph"
+      ],
+      "stage" : 1
+    },
+    {
+      "input" : "Text\n| A | B |\n",
+      "rawBlockTypes" : [
+        "paragraph"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph"
+      ],
+      "stage" : 2
+    },
+    {
+      "input" : "Text\n| A | B |\n|---|---|",
+      "rawBlockTypes" : [
+        "paragraph",
+        "table"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "table"
+      ],
+      "stage" : 3
+    },
+    {
+      "input" : "Text\n| A | B |\n|---|---|\n| 1 | 2 |",
+      "rawBlockTypes" : [
+        "paragraph",
+        "table"
+      ],
+      "stabilizedBlockTypes" : [
+        "paragraph",
+        "table"
+      ],
+      "stage" : 4
+    }
+  ]
+}

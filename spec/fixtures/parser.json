@@ -1,0 +1,147 @@
+{
+  "document" : {
+    "blocks" : [
+      {
+        "content" : [
+          {
+            "type" : "text",
+            "value" : "Fixtures"
+          }
+        ],
+        "level" : 1,
+        "type" : "heading"
+      },
+      {
+        "content" : [
+          {
+            "type" : "text",
+            "value" : "Paragraph with "
+          },
+          {
+            "children" : [
+              {
+                "type" : "text",
+                "value" : "bold"
+              }
+            ],
+            "type" : "strong"
+          },
+          {
+            "type" : "text",
+            "value" : ", "
+          },
+          {
+            "type" : "inlineCode",
+            "value" : "code"
+          },
+          {
+            "type" : "text",
+            "value" : ", "
+          },
+          {
+            "children" : [
+              {
+                "type" : "text",
+                "value" : "link"
+              }
+            ],
+            "destination" : "https://example.com",
+            "type" : "link"
+          },
+          {
+            "type" : "text",
+            "value" : ", and task list:"
+          }
+        ],
+        "type" : "paragraph"
+      },
+      {
+        "items" : [
+          {
+            "checkbox" : "checked",
+            "children" : [
+              {
+                "content" : [
+                  {
+                    "type" : "text",
+                    "value" : "complete"
+                  }
+                ],
+                "type" : "paragraph"
+              }
+            ]
+          },
+          {
+            "checkbox" : "unchecked",
+            "children" : [
+              {
+                "content" : [
+                  {
+                    "type" : "text",
+                    "value" : "pending"
+                  }
+                ],
+                "type" : "paragraph"
+              }
+            ]
+          }
+        ],
+        "tight" : true,
+        "type" : "unorderedList"
+      },
+      {
+        "body" : [
+          {
+            "cells" : [
+              {
+                "content" : [
+                  {
+                    "type" : "text",
+                    "value" : "1"
+                  }
+                ]
+              },
+              {
+                "content" : [
+                  {
+                    "type" : "text",
+                    "value" : "2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "columnAlignments" : [
+          "none",
+          "none"
+        ],
+        "head" : {
+          "cells" : [
+            {
+              "content" : [
+                {
+                  "type" : "text",
+                  "value" : "A"
+                }
+              ]
+            },
+            {
+              "content" : [
+                {
+                  "type" : "text",
+                  "value" : "B"
+                }
+              ]
+            }
+          ]
+        },
+        "type" : "table"
+      }
+    ],
+    "metadata" : {
+
+    },
+    "plainText" : "Fixtures\nParagraph with bold, code, link, and task list:\ncomplete\npending\nA\tB\n1\t2"
+  }
+}

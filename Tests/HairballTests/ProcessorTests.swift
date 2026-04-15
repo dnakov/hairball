@@ -77,6 +77,23 @@ final class ProcessorTests: XCTestCase {
         }), "Expected citation with index 1, got: \(content)")
     }
 
+    func testBracketLinkCitation() {
+        let doc = parser.parse("See [1](https://example.com \"Example\") for details.")
+        let processed = CitationProcessor().process(doc)
+        guard case .paragraph(let content) = processed.blocks[0] else {
+            XCTFail("Expected paragraph"); return
+        }
+
+        XCTAssertTrue(content.contains(where: {
+            if case .citation(let idx, let url, let title) = $0 {
+                return idx == 1 && url == "https://example.com" && title == "Example"
+            }
+            return false
+        }), "Expected bracket citation, got: \(content)")
+        XCTAssertEqual(processed.metadata["citation.1.url"], "https://example.com")
+        XCTAssertEqual(processed.metadata["citation.1.title"], "Example")
+    }
+
     // MARK: - DefaultMarkdownProcessor
 
     func testDefaultProcessorMergesTextNodes() {

@@ -2,13 +2,13 @@ name: HairballExample
 options:
   bundleIdPrefix: com.hairball
   deploymentTarget:
-    macOS: "13.0"
-    iOS: "16.0"
-  xcodeVersion: "15.0"
+    macOS: "15.0"
+    iOS: "18.0"
+  xcodeVersion: "16.0"
 
 packages:
   Hairball:
-    path: ..
+    path: ../..
 
 targets:
   HairballExample:
@@ -29,4 +29,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.hairball.example
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"

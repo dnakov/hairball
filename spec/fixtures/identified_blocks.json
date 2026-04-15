@@ -1,0 +1,19 @@
+{
+  "identifiedBlocks" : [
+    {
+      "id" : "h1-0",
+      "plainText" : "Intro",
+      "type" : "heading"
+    },
+    {
+      "id" : "p-1",
+      "plainText" : "Paragraph one.",
+      "type" : "paragraph"
+    },
+    {
+      "id" : "p-2",
+      "plainText" : "Paragraph two with inline code.",
+      "type" : "paragraph"
+    }
+  ]
+}

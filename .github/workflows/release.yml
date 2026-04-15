@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  publish:
+    runs-on: macos-26
+    env:
+      VERSION_NAME: ${{ github.ref_name }}
+      ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}
+      ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platforms
+        run: |
+          sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35"
+
+      - name: Validate Swift package
+        run: swift test
+
+      - name: Validate fixtures
+        run: ./scripts/verify-fixtures.sh
+
+      - name: Build Apple demo
+        run: ./scripts/build-apple-demo.sh
+
+      - name: Publish Android artifacts
+        run: |
+          ./android/gradlew -p android \
+            :hairball-core:publishAndReleaseToMavenCentral \
+            :hairball-compose:publishAndReleaseToMavenCentral \
+            -PVERSION_NAME="${VERSION_NAME}"

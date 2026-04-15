@@ -79,6 +79,39 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(content, [.text("``")])
     }
 
+    func testBlockDirectivesEnabledByDefault() {
+        let doc = MarkdownParser().parse("""
+        @Tutorial {
+        Body
+        }
+        """)
+
+        guard case .blockDirective(let name, _, let children) = doc.blocks.first else {
+            XCTFail("Expected block directive"); return
+        }
+
+        XCTAssertEqual(name, "Tutorial")
+        XCTAssertEqual(children.count, 1)
+    }
+
+    func testBlockDirectivesCanBeDisabled() {
+        let doc = MarkdownParser(options: []).parse("""
+        @Tutorial {
+        Body
+        }
+        """)
+
+        guard case .paragraph(let content) = doc.blocks.first else {
+            XCTFail("Expected paragraph when directives are disabled"); return
+        }
+
+        let text = content.compactMap { node -> String? in
+            if case .text(let value) = node { return value }
+            return nil
+        }.joined()
+        XCTAssertTrue(text.contains("@Tutorial"))
+    }
+
     // MARK: - Code blocks
 
     func testFencedCodeBlock() {

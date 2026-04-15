@@ -1,0 +1,70 @@
+{
+  "document" : {
+    "blocks" : [
+      {
+        "content" : [
+          {
+            "type" : "text",
+            "value" : "Visit "
+          },
+          {
+            "children" : [
+              {
+                "type" : "text",
+                "value" : "https://example.com"
+              }
+            ],
+            "destination" : "https://example.com",
+            "type" : "link"
+          },
+          {
+            "type" : "text",
+            "value" : " and cite "
+          },
+          {
+            "index" : 1,
+            "title" : "Example",
+            "type" : "citation",
+            "url" : "https://example.com"
+          },
+          {
+            "type" : "text",
+            "value" : "."
+          }
+        ],
+        "type" : "paragraph"
+      },
+      {
+        "content" : [
+          {
+            "type" : "text",
+            "value" : "Inline math "
+          },
+          {
+            "type" : "latex",
+            "value" : "E = mc^2"
+          },
+          {
+            "type" : "text",
+            "value" : " and footnote"
+          },
+          {
+            "index" : 2,
+            "type" : "citation"
+          },
+          {
+            "type" : "text",
+            "value" : "."
+          }
+        ],
+        "type" : "paragraph"
+      }
+    ],
+    "metadata" : {
+      "citation.1.title" : "Example",
+      "citation.1.url" : "https://example.com",
+      "citationCount" : "2"
+    },
+    "plainText" : "Visit https://example.com and cite Example.\nInline math E = mc^2 and footnote."
+  }
+}

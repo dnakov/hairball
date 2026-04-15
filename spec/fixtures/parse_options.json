@@ -1,0 +1,56 @@
+{
+  "default" : {
+    "blocks" : [
+      {
+        "children" : [
+          {
+            "content" : [
+              {
+                "type" : "text",
+                "value" : "Body"
+              }
+            ],
+            "type" : "paragraph"
+          }
+        ],
+        "name" : "Tutorial",
+        "type" : "blockDirective"
+      }
+    ],
+    "metadata" : {
+
+    },
+    "plainText" : "Body"
+  },
+  "disabled" : {
+    "blocks" : [
+      {
+        "content" : [
+          {
+            "type" : "text",
+            "value" : "@Tutorial {"
+          },
+          {
+            "type" : "softBreak"
+          },
+          {
+            "type" : "text",
+            "value" : "Body"
+          },
+          {
+            "type" : "softBreak"
+          },
+          {
+            "type" : "text",
+            "value" : "}"
+          }
+        ],
+        "type" : "paragraph"
+      }
+    ],
+    "metadata" : {
+
+    },
+    "plainText" : "@Tutorial { Body }"
+  }
+}

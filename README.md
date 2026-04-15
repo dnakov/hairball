@@ -11,6 +11,16 @@ A Swift markdown parsing and rendering library for iOS and macOS. Two targets:
 
 Platforms: iOS 18+, macOS 15+
 
+## Monorepo Layout
+
+- `Sources/` and `Tests/` keep the root SwiftPM package surface for Apple consumers.
+- `apps/apple-demo/` contains the Apple demo app and Xcode project assets.
+- `android/` contains the Android Gradle workspace:
+  `hairball-core`, `hairball-compose`, and `hairball-demo`.
+- `spec/fixtures/` contains Swift-generated golden fixtures used to keep Android aligned with the Swift AST and processor behavior.
+- `scripts/` contains cross-platform verification helpers:
+  `export-fixtures.sh`, `verify-fixtures.sh`, `build-apple-demo.sh`, and `android-publish-dry-run.sh`.
+
 ---
 
 ## Quick Start

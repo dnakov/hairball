@@ -11,6 +11,7 @@ let package = Package(
     products: [
         .library(name: "Hairball", targets: ["Hairball"]),
         .library(name: "HairballUI", targets: ["HairballUI"]),
+        .executable(name: "hairball-fixture-exporter", targets: ["HairballFixtureExporter"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-markdown.git", from: "0.4.0"),
@@ -36,6 +37,11 @@ let package = Package(
         .testTarget(
             name: "HairballTests",
             dependencies: ["Hairball", "HairballUI"]
+        ),
+        .executableTarget(
+            name: "HairballFixtureExporter",
+            dependencies: ["Hairball"],
+            path: "scripts/fixture-exporter"
         ),
     ]
 )

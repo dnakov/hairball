@@ -1025,6 +1025,7 @@ private let darkAssistantTheme = MarkdownTheme(
 
 // MARK: - Shared highlighter (reused across all messages)
 
+@MainActor
 private let sharedHighlighter = HighlightrCodeSyntaxHighlighter(theme: "atom-one-dark")
 
 // MARK: - Message Row

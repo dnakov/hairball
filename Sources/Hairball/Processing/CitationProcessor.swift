@@ -111,6 +111,14 @@ public struct CitationProcessor: MarkdownProcessor {
             return [.strikethrough(children: processInlines(children, citationSources: &citationSources))]
 
         case .link(let dest, let title, let children):
+            if let citation = parseBracketCitationLink(
+                destination: dest,
+                title: title,
+                children: children,
+                citationSources: &citationSources
+            ) {
+                return [citation]
+            }
             return [.link(destination: dest, title: title, children: processInlines(children, citationSources: &citationSources))]
 
         case .image(let source, let title, let children):
@@ -235,5 +243,25 @@ public struct CitationProcessor: MarkdownProcessor {
         }
 
         return CitationMatch(index: index, url: url, title: title, range: wholeRange)
+    }
+
+    private func parseBracketCitationLink(
+        destination: String,
+        title: String?,
+        children: [InlineNode],
+        citationSources: inout [Int: (url: String?, title: String?)]
+    ) -> InlineNode? {
+        let text = children.compactMap { node -> String? in
+            if case .text(let value) = node { return value }
+            return nil
+        }.joined()
+
+        guard !text.isEmpty, text.range(of: #"^\d+$"#, options: .regularExpression) != nil,
+              let index = Int(text) else {
+            return nil
+        }
+
+        citationSources[index] = (url: destination, title: title)
+        return .citation(index: index, url: destination, title: title)
     }
 }

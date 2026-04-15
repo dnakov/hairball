@@ -5,3 +5,9 @@ xcuserdata/
 DerivedData/
 .DS_Store
 Package.resolved
+.gradle/
+android/build/
+android/**/build/
+android/.idea/
+android/local.properties
+android/gradle/gradle-daemon-jvm.properties

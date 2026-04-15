@@ -12,7 +12,7 @@ public struct ParseOptions: OptionSet, Sendable {
     public static let parseSymbolLinks = ParseOptions(rawValue: 1 << 1)
     public static let parseMinimalDoxygen = ParseOptions(rawValue: 1 << 2)
 
-    public static let `default`: ParseOptions = []
+    public static let `default`: ParseOptions = [.parseBlockDirectives]
 }
 
 public struct MarkdownParser: Sendable {
@@ -23,9 +23,11 @@ public struct MarkdownParser: Sendable {
     }
 
     public func parse(_ markdown: String) -> Document {
-        var markdownOptions: Markdown.ParseOptions = [
-            .parseBlockDirectives,
-        ]
+        var markdownOptions: Markdown.ParseOptions = []
+
+        if options.contains(.parseBlockDirectives) {
+            markdownOptions.insert(.parseBlockDirectives)
+        }
 
         if options.contains(.parseSymbolLinks) {
             markdownOptions.insert(.parseSymbolLinks)
