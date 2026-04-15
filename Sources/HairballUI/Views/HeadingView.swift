@@ -26,10 +26,14 @@ private struct HeadingBody: View {
 
     var body: some View {
         let style = theme.headingStyle(for: level)
-        InlineTextRenderer(theme: theme).render(content)
-            .font(style.font)
-            .fontWeight(style.weight)
-            .foregroundColor(style.color)
+        InlineTextRenderer(theme: theme).render(
+            content,
+            baseStyle: InlineStyle(
+                font: style.font,
+                fontWeight: style.weight,
+                foregroundColor: style.color
+            )
+        )
             .padding(.top, style.topSpacing * theme.headingTopSpacingMultiplier)
             .padding(.bottom, style.bottomSpacing * theme.headingBottomSpacingMultiplier)
             .frame(maxWidth: .infinity, alignment: .leading)

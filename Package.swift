@@ -35,11 +35,7 @@ let package = Package(
         ),
         .testTarget(
             name: "HairballTests",
-            dependencies: ["Hairball"]
-        ),
-        .testTarget(
-            name: "HairballUITests",
-            dependencies: ["HairballUI"]
+            dependencies: ["Hairball", "HairballUI"]
         ),
     ]
 )

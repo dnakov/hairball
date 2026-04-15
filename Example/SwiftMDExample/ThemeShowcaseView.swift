@@ -51,7 +51,8 @@ struct ThemeShowcaseView: View {
     ## Formatting
 
     - **Bold** and *italic*
-    - `Inline code`
+    - Single-backtick inline code: `Inline code`
+    - Compare plain text vs `let count = 42` vs `URLSession.shared`
     - [A link](https://example.com)
 
     > Blockquote styling.

@@ -153,9 +153,14 @@ public struct StreamingTextView: View {
     }
 
     public var body: some View {
-        let fullAttr = InlineTextRenderer(theme: theme).renderToAttributedString(content)
+        let fullAttr = InlineTextRenderer(theme: theme).renderToAttributedString(
+            content,
+            baseStyle: InlineStyle(
+                font: theme.bodyFont,
+                foregroundColor: theme.bodyTextColor
+            )
+        )
         RevealedText(attributedString: fullAttr, revealPosition: revealPosition, blockComplete: blockComplete)
-            .font(theme.bodyFont)
             .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }

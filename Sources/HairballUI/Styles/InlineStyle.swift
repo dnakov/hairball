@@ -124,15 +124,15 @@ public struct InlineTextRenderer {
         self.theme = theme
     }
 
-    public func render(_ nodes: [InlineNode]) -> SwiftUI.Text {
-        let segments = renderSegments(nodes, style: InlineStyle())
+    public func render(_ nodes: [InlineNode], baseStyle: InlineStyle = InlineStyle()) -> SwiftUI.Text {
+        let segments = renderSegments(nodes, style: baseStyle)
         return combineSegments(segments)
     }
 
     /// Renders inline nodes into a single `AttributedString`.
     /// Used by the TextRenderer path (iOS 18+) which handles splitting at the render level.
-    public func renderToAttributedString(_ nodes: [InlineNode]) -> AttributedString {
-        let segments = renderSegments(nodes, style: InlineStyle())
+    public func renderToAttributedString(_ nodes: [InlineNode], baseStyle: InlineStyle = InlineStyle()) -> AttributedString {
+        let segments = renderSegments(nodes, style: baseStyle)
         return mergeAttributedSegments(segments)
     }
 
@@ -141,9 +141,10 @@ public struct InlineTextRenderer {
     /// Splits the rendered attributed string into two halves at a character boundary.
     public func renderAndSplit(
         _ nodes: [InlineNode],
+        baseStyle: InlineStyle = InlineStyle(),
         at characterIndex: Int
     ) -> (revealed: AttributedString, fresh: AttributedString) {
-        let segments = renderSegments(nodes, style: InlineStyle())
+        let segments = renderSegments(nodes, style: baseStyle)
         let fullAttr = mergeAttributedSegments(segments)
         let parts = fullAttr.split(at: characterIndex)
         return (parts.before, parts.after)
@@ -196,8 +197,10 @@ public struct InlineTextRenderer {
         case .inlineCode(let code):
             var attr = AttributedString(code)
             attr.font = theme.inlineCode.font
-            if let foregroundColor = style.foregroundColor {
-                attr.foregroundColor = foregroundColor
+            attr.foregroundColor = theme.inlineCode.textColor
+            attr.backgroundColor = theme.inlineCode.backgroundColor
+            if let baselineOffset = style.baselineOffset {
+                attr.baselineOffset = baselineOffset
             }
             return [.attributed(attr)]
 

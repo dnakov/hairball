@@ -67,18 +67,19 @@ public struct MarkdownTableView: View {
     private func cellView(for row: MarkdownTableRow, col: Int, isHeader: Bool) -> some View {
         let cell = col < row.cells.count ? row.cells[col] : MarkdownTableCell(content: [])
         let renderer = InlineTextRenderer(theme: theme)
-        let rendered = renderer.render(cell.content)
+        let rendered = renderer.render(
+            cell.content,
+            baseStyle: InlineStyle(
+                font: theme.bodyFont,
+                fontWeight: isHeader ? style.headerFontWeight : nil,
+                foregroundColor: theme.bodyTextColor
+            )
+        )
         let align = alignment(for: col)
 
         Group {
-            if isHeader {
-                rendered
-                    .fontWeight(style.headerFontWeight)
-            } else {
-                rendered
-            }
+            rendered
         }
-        .font(theme.bodyFont)
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: align)
         .padding(.horizontal, style.cellConfiguration.horizontalPadding)

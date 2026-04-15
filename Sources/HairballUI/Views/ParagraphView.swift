@@ -24,9 +24,13 @@ private struct ParagraphBody: View {
     let content: [InlineNode]
 
     var body: some View {
-        InlineTextRenderer(theme: theme).render(content)
-            .font(theme.bodyFont)
-            .foregroundColor(theme.bodyTextColor)
+        InlineTextRenderer(theme: theme).render(
+            content,
+            baseStyle: InlineStyle(
+                font: theme.bodyFont,
+                foregroundColor: theme.bodyTextColor
+            )
+        )
             .frame(maxWidth: .infinity, alignment: .leading)
             .textSelection(.enabled)
     }

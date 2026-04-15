@@ -41,6 +41,44 @@ final class ParserTests: XCTestCase {
         }))
     }
 
+    func testParagraphWithSingleBacktickInlineCode() {
+        let doc = parser.parse("Use `code` here")
+        XCTAssertEqual(doc.blocks.count, 1)
+        guard case .paragraph(let content) = doc.blocks[0] else {
+            XCTFail("Expected paragraph"); return
+        }
+
+        XCTAssertEqual(content, [
+            .text("Use "),
+            .inlineCode("code"),
+            .text(" here"),
+        ])
+    }
+
+    func testParagraphWithDoubleBacktickInlineCode() {
+        let doc = parser.parse("Use ``code`` here")
+        XCTAssertEqual(doc.blocks.count, 1)
+        guard case .paragraph(let content) = doc.blocks[0] else {
+            XCTFail("Expected paragraph"); return
+        }
+
+        XCTAssertEqual(content, [
+            .text("Use "),
+            .inlineCode("code"),
+            .text(" here"),
+        ])
+    }
+
+    func testBareDoubleBackticksRemainText() {
+        let doc = parser.parse("``")
+        XCTAssertEqual(doc.blocks.count, 1)
+        guard case .paragraph(let content) = doc.blocks[0] else {
+            XCTFail("Expected paragraph"); return
+        }
+
+        XCTAssertEqual(content, [.text("``")])
+    }
+
     // MARK: - Code blocks
 
     func testFencedCodeBlock() {
