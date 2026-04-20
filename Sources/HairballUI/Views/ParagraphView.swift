@@ -1,7 +1,7 @@
 import SwiftUI
 import Hairball
 
-public struct ParagraphView: View {
+public struct ParagraphView: View, Equatable {
     private let content: [InlineNode]
 
     public init(content: [InlineNode]) {

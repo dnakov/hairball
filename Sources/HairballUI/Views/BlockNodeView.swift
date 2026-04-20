@@ -21,10 +21,18 @@ public struct BlockNodeView: View {
             }
 
         case .heading(let level, let content):
-            HeadingView(level: level, content: content)
+            // `.equatable()` lets SwiftUI short-circuit body re-eval when
+            // heading inputs are stable — cheap `Array<InlineNode>`
+            // comparison vs. the much more expensive re-run of
+            // `InlineTextRenderer` and styled-text layout.
+            HeadingView(level: level, content: content).equatable()
 
         case .paragraph(let content):
-            ParagraphView(content: content)
+            // Same reason as `.heading` above. `StyledTextLayoutComputer`
+            // was the single largest cost inside this view list in
+            // profiling; this Equatable short-circuit is the biggest
+            // render-side win of the parse-cache / Equatable refactor.
+            ParagraphView(content: content).equatable()
 
         case .codeBlock(let language, let content):
             CodeBlockView(language: language, content: content)

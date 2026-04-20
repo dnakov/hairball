@@ -111,14 +111,20 @@ public struct MarkdownBlocksView: View {
 
     @State private var isRevealing = false
 
+    /// Only fade crossfade for block-level granularity where streaming/static
+    /// renders can look noticeably different.
+    private var usesFade: Bool {
+        granularity == .block
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
             if isRevealing {
                 cursorRevealBody
-                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
+                    .transition(usesFade ? .opacity.animation(.easeOut(duration: 0.35)) : .identity)
             } else {
                 staticBody
-                    .transition(.opacity.animation(.easeOut(duration: 0.35)))
+                    .transition(usesFade ? .opacity.animation(.easeOut(duration: 0.35)) : .identity)
             }
         }
         .foregroundColor(theme.foregroundColor)
@@ -129,7 +135,11 @@ public struct MarkdownBlocksView: View {
             if newValue {
                 isRevealing = true
             } else {
-                withAnimation(.easeOut(duration: 0.35)) {
+                if usesFade {
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        isRevealing = false
+                    }
+                } else {
                     isRevealing = false
                 }
             }

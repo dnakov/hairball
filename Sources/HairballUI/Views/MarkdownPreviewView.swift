@@ -9,7 +9,7 @@ public struct MarkdownPreviewView: View {
     private let markdown: String
     private let maxBlocks: Int?
     private let showGradientFade: Bool
-    private let parser: MarkdownParser
+    private let options: ParseOptions
     private let processors: [any MarkdownProcessor]
 
     public init(
@@ -22,12 +22,18 @@ public struct MarkdownPreviewView: View {
         self.markdown = markdown
         self.maxBlocks = maxBlocks
         self.showGradientFade = showGradientFade
-        self.parser = MarkdownParser(options: options)
+        self.options = options
         self.processors = processors
     }
 
     public var body: some View {
-        let document = processedDocument
+        // Route through the shared parse cache so re-evals for the same
+        // markdown don't re-run the parser + processor chain.
+        let document = MarkdownParseCache.shared.document(
+            for: markdown,
+            options: options,
+            processors: processors
+        )
         let blocks = truncatedBlocks(from: document)
         let isTruncated = maxBlocks != nil && document.blocks.count > (maxBlocks ?? 0)
 
@@ -48,14 +54,6 @@ public struct MarkdownPreviewView: View {
                 .allowsHitTesting(false)
             }
         }
-    }
-
-    private var processedDocument: Document {
-        var doc = parser.parse(markdown)
-        for processor in processors {
-            doc = processor.process(doc)
-        }
-        return doc
     }
 
     private func truncatedBlocks(from document: Document) -> [BlockNode] {

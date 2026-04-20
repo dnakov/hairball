@@ -1,7 +1,7 @@
 import SwiftUI
 import Hairball
 
-public struct HeadingView: View {
+public struct HeadingView: View, Equatable {
     private let level: Int
     private let content: [InlineNode]
 
