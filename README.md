@@ -11,6 +11,10 @@ A Swift markdown parsing and rendering library for iOS and macOS. Two targets:
 
 Platforms: iOS 18+, macOS 15+
 
+## License
+
+Hairball is licensed under the GNU Lesser General Public License v3.0. See `LICENSE` and `COPYING`.
+
 ## Monorepo Layout
 
 - `Sources/` and `Tests/` keep the root SwiftPM package surface for Apple consumers.
