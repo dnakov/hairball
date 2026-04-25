@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import Hairball
 import SwiftMath
@@ -230,7 +231,7 @@ public struct InlineTextRenderer {
             return [.attributed(AttributedString("\n"))]
 
         case .inlineHTML(let html):
-            var attr = AttributedString(html)
+            var attr = AttributedString(html.replacingHTMLLineBreakTags())
             applyStyle(style, to: &attr)
             return [.attributed(attr)]
 
@@ -338,6 +339,16 @@ public struct InlineTextRenderer {
         }
 
         return result
+    }
+}
+
+private extension String {
+    func replacingHTMLLineBreakTags() -> String {
+        replacingOccurrences(
+            of: #"<br\s*/?>"#,
+            with: "\n",
+            options: [.regularExpression, .caseInsensitive]
+        )
     }
 }
 

@@ -14,11 +14,18 @@ public struct MarkdownTableView: View {
         self.body_ = body
     }
 
-    private var colCount: Int { columnAlignments.count }
+    private var colCount: Int {
+        max(
+            1,
+            columnAlignments.count,
+            head.cells.count,
+            body_.map(\.cells.count).max() ?? 0
+        )
+    }
     private var style: TableStyle { theme.table }
 
     public var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal, showsIndicators: true) {
             Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
                 // Header
                 GridRow {
@@ -77,11 +84,17 @@ public struct MarkdownTableView: View {
         )
         let align = alignment(for: col)
 
-        Group {
+        VStack(alignment: horizontalAlignment(for: col), spacing: 0) {
             rendered
+                .multilineTextAlignment(textAlignment(for: col))
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: align)
+        .frame(
+            width: columnContentWidth,
+            alignment: align
+        )
         .padding(.horizontal, style.cellConfiguration.horizontalPadding)
         .padding(.vertical, style.cellConfiguration.verticalPadding)
         .gridColumnAlignment(horizontalAlignment(for: col))
@@ -102,6 +115,33 @@ public struct MarkdownTableView: View {
         case .left, .none: return .leading
         case .center: return .center
         case .right: return .trailing
+        }
+    }
+
+    private func textAlignment(for col: Int) -> TextAlignment {
+        guard col < columnAlignments.count else { return .leading }
+        switch columnAlignments[col] {
+        case .left, .none: return .leading
+        case .center: return .center
+        case .right: return .trailing
+        }
+    }
+
+    private var columnContentWidth: CGFloat {
+        max(
+            style.minimumColumnWidth,
+            columnVisualWidth - style.cellConfiguration.horizontalPadding * 2
+        )
+    }
+
+    private var columnVisualWidth: CGFloat {
+        switch colCount {
+        case 0...2:
+            return style.maximumColumnWidth
+        case 3:
+            return min(style.maximumColumnWidth, 260)
+        default:
+            return min(style.maximumColumnWidth, 220)
         }
     }
 

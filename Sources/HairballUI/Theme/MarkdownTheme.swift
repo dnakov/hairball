@@ -195,6 +195,8 @@ public struct TableStyle: Sendable, Equatable {
     public var fontSize: CGFloat
     public var verticalMargin: CGFloat
     public var cornerRadius: CGFloat
+    public var minimumColumnWidth: CGFloat
+    public var maximumColumnWidth: CGFloat
 
     /// Convenience accessors for backward compatibility.
     public var headerBackgroundColor: Color { headerBackground }
@@ -238,7 +240,9 @@ public struct TableStyle: Sendable, Equatable {
         cellConfiguration: TableCellConfiguration = TableCellConfiguration(),
         fontSize: CGFloat = 13,
         verticalMargin: CGFloat = 16,
-        cornerRadius: CGFloat = 0
+        cornerRadius: CGFloat = 0,
+        minimumColumnWidth: CGFloat = 96,
+        maximumColumnWidth: CGFloat = 280
     ) {
         self.borderStyle = borderStyle
         self.headerBackground = headerBackground
@@ -248,6 +252,8 @@ public struct TableStyle: Sendable, Equatable {
         self.fontSize = fontSize
         self.verticalMargin = verticalMargin
         self.cornerRadius = cornerRadius
+        self.minimumColumnWidth = minimumColumnWidth
+        self.maximumColumnWidth = maximumColumnWidth
     }
 }
 
