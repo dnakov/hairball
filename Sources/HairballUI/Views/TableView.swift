@@ -26,39 +26,22 @@ public struct MarkdownTableView: View {
 
     public var body: some View {
         ScrollView(.horizontal, showsIndicators: true) {
-            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                // Header
-                GridRow {
-                    ForEach(0..<colCount, id: \.self) { col in
-                        cellView(for: head, col: col, isHeader: true)
-                    }
-                }
-                .background(style.headerBackground)
+            VStack(spacing: 0) {
+                rowView(for: head, isHeader: true)
+                    .background(style.headerBackground)
 
-                // Header border
-                GridRow {
-                    Rectangle()
-                        .fill(style.borderColor)
-                        .frame(height: max(style.borderWidth, 1))
-                        .gridCellColumns(colCount)
-                }
+                Rectangle()
+                    .fill(style.borderColor)
+                    .frame(height: max(style.borderWidth, 1))
 
-                // Body rows
                 ForEach(Array(body_.enumerated()), id: \.offset) { rowIndex, row in
-                    GridRow {
-                        ForEach(0..<colCount, id: \.self) { col in
-                            cellView(for: row, col: col, isHeader: false)
-                        }
-                    }
+                    rowView(for: row, isHeader: false)
                     .background(rowBackground(rowIndex: rowIndex))
 
                     if rowIndex < body_.count - 1 && style.borderWidth > 0 {
-                        GridRow {
-                            Rectangle()
-                                .fill(style.borderColor)
-                                .frame(height: style.borderWidth)
-                                .gridCellColumns(colCount)
-                        }
+                        Rectangle()
+                            .fill(style.borderColor)
+                            .frame(height: style.borderWidth)
                     }
                 }
             }
@@ -67,6 +50,14 @@ public struct MarkdownTableView: View {
                 RoundedRectangle(cornerRadius: style.cornerRadius)
                     .strokeBorder(style.borderColor, lineWidth: style.borderWidth)
             )
+        }
+    }
+
+    private func rowView(for row: MarkdownTableRow, isHeader: Bool) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(0..<colCount, id: \.self) { col in
+                cellView(for: row, col: col, isHeader: isHeader)
+            }
         }
     }
 
@@ -97,7 +88,7 @@ public struct MarkdownTableView: View {
         )
         .padding(.horizontal, style.cellConfiguration.horizontalPadding)
         .padding(.vertical, style.cellConfiguration.verticalPadding)
-        .gridColumnAlignment(horizontalAlignment(for: col))
+        .frame(width: columnVisualWidth, alignment: align)
     }
 
     private func alignment(for col: Int) -> Alignment {
