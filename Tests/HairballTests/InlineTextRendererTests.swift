@@ -44,4 +44,20 @@ final class InlineTextRendererTests: XCTestCase {
         XCTAssertEqual(codeSlice.foregroundColor, .red)
         XCTAssertEqual(codeSlice.backgroundColor, .yellow)
     }
+
+    func testInlineHTMLBreakTagsRenderAsLineBreaks() {
+        let theme = MarkdownTheme(bodyFont: .system(size: 14))
+        let parser = MarkdownParser()
+        let document = parser.parse("first<br><br />second")
+        guard case .paragraph(let content) = document.blocks.first else {
+            XCTFail("Expected paragraph"); return
+        }
+
+        let rendered = InlineTextRenderer(theme: theme).renderToAttributedString(
+            content,
+            baseStyle: InlineStyle(font: theme.bodyFont)
+        )
+
+        XCTAssertEqual(String(rendered.characters), "first\n\nsecond")
+    }
 }

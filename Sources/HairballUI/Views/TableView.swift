@@ -14,44 +14,34 @@ public struct MarkdownTableView: View {
         self.body_ = body
     }
 
-    private var colCount: Int { columnAlignments.count }
+    private var colCount: Int {
+        max(
+            1,
+            columnAlignments.count,
+            head.cells.count,
+            body_.map(\.cells.count).max() ?? 0
+        )
+    }
     private var style: TableStyle { theme.table }
 
     public var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                // Header
-                GridRow {
-                    ForEach(0..<colCount, id: \.self) { col in
-                        cellView(for: head, col: col, isHeader: true)
-                    }
-                }
-                .background(style.headerBackground)
+        ScrollView(.horizontal, showsIndicators: true) {
+            VStack(spacing: 0) {
+                rowView(for: head, isHeader: true)
+                    .background(style.headerBackground)
 
-                // Header border
-                GridRow {
-                    Rectangle()
-                        .fill(style.borderColor)
-                        .frame(height: max(style.borderWidth, 1))
-                        .gridCellColumns(colCount)
-                }
+                Rectangle()
+                    .fill(style.borderColor)
+                    .frame(height: max(style.borderWidth, 1))
 
-                // Body rows
                 ForEach(Array(body_.enumerated()), id: \.offset) { rowIndex, row in
-                    GridRow {
-                        ForEach(0..<colCount, id: \.self) { col in
-                            cellView(for: row, col: col, isHeader: false)
-                        }
-                    }
+                    rowView(for: row, isHeader: false)
                     .background(rowBackground(rowIndex: rowIndex))
 
                     if rowIndex < body_.count - 1 && style.borderWidth > 0 {
-                        GridRow {
-                            Rectangle()
-                                .fill(style.borderColor)
-                                .frame(height: style.borderWidth)
-                                .gridCellColumns(colCount)
-                        }
+                        Rectangle()
+                            .fill(style.borderColor)
+                            .frame(height: style.borderWidth)
                     }
                 }
             }
@@ -60,6 +50,14 @@ public struct MarkdownTableView: View {
                 RoundedRectangle(cornerRadius: style.cornerRadius)
                     .strokeBorder(style.borderColor, lineWidth: style.borderWidth)
             )
+        }
+    }
+
+    private func rowView(for row: MarkdownTableRow, isHeader: Bool) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(0..<colCount, id: \.self) { col in
+                cellView(for: row, col: col, isHeader: isHeader)
+            }
         }
     }
 
@@ -77,14 +75,20 @@ public struct MarkdownTableView: View {
         )
         let align = alignment(for: col)
 
-        Group {
+        VStack(alignment: horizontalAlignment(for: col), spacing: 0) {
             rendered
+                .multilineTextAlignment(textAlignment(for: col))
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: align)
+        .frame(
+            width: columnContentWidth,
+            alignment: align
+        )
         .padding(.horizontal, style.cellConfiguration.horizontalPadding)
         .padding(.vertical, style.cellConfiguration.verticalPadding)
-        .gridColumnAlignment(horizontalAlignment(for: col))
+        .frame(width: columnVisualWidth, alignment: align)
     }
 
     private func alignment(for col: Int) -> Alignment {
@@ -102,6 +106,33 @@ public struct MarkdownTableView: View {
         case .left, .none: return .leading
         case .center: return .center
         case .right: return .trailing
+        }
+    }
+
+    private func textAlignment(for col: Int) -> TextAlignment {
+        guard col < columnAlignments.count else { return .leading }
+        switch columnAlignments[col] {
+        case .left, .none: return .leading
+        case .center: return .center
+        case .right: return .trailing
+        }
+    }
+
+    private var columnContentWidth: CGFloat {
+        max(
+            style.minimumColumnWidth,
+            columnVisualWidth - style.cellConfiguration.horizontalPadding * 2
+        )
+    }
+
+    private var columnVisualWidth: CGFloat {
+        switch colCount {
+        case 0...2:
+            return style.maximumColumnWidth
+        case 3:
+            return min(style.maximumColumnWidth, 260)
+        default:
+            return min(style.maximumColumnWidth, 220)
         }
     }
 
